@@ -1,0 +1,4 @@
+[submodule "third_party/AndEngine"]
+	path = third_party/AndEngine
+	url = https://github.com/nicolasgramlich/AndEngine.git
+	branch = GLES2-AnchorCenter
