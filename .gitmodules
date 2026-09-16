@@ -1,0 +1,8 @@
+[submodule "third_party/AndEngine"]
+	path = third_party/AndEngine
+	url = https://github.com/nicolasgramlich/AndEngine.git
+	branch = GLES2-AnchorCenter
+[submodule "third_party/AndEnginePhysicsBox2DExtension"]
+	path = third_party/AndEnginePhysicsBox2DExtension
+	url = https://github.com/nicolasgramlich/AndEnginePhysicsBox2DExtension.git
+	branch = GLES2-AnchorCenter
