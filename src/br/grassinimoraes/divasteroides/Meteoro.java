@@ -3,13 +3,13 @@ package br.grassinimoraes.divasteroides;
 import android.opengl.GLES20;
 import android.util.Log;
 
-import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.physics.box2d.Body;
 import com.badlogic.gdx.physics.box2d.BodyDef;
 import com.badlogic.gdx.physics.box2d.FixtureDef;
 
 import org.andengine.engine.Engine;
 import org.andengine.entity.IEntity;
+import org.andengine.entity.IEntityFactory;
 import org.andengine.entity.modifier.AlphaModifier;
 import org.andengine.entity.modifier.ColorModifier;
 import org.andengine.entity.modifier.LoopEntityModifier;
@@ -17,7 +17,6 @@ import org.andengine.entity.modifier.ParallelEntityModifier;
 import org.andengine.entity.modifier.RotationModifier;
 import org.andengine.entity.modifier.ScaleModifier;
 import org.andengine.entity.modifier.SequenceEntityModifier;
-import org.andengine.entity.particle.IEntityFactory;
 import org.andengine.entity.particle.ParticleSystem;
 import org.andengine.entity.particle.SpriteParticleSystem;
 import org.andengine.entity.particle.emitter.CircleOutlineParticleEmitter;
@@ -30,7 +29,6 @@ import org.andengine.entity.particle.initializer.ExpireParticleInitializer;
 import org.andengine.entity.particle.initializer.RotationParticleInitializer;
 import org.andengine.entity.particle.initializer.VelocityParticleInitializer;
 import org.andengine.entity.particle.modifier.AlphaParticleModifier;
-import org.andengine.entity.particle.modifier.ColorParticleModifier;
 import org.andengine.entity.particle.modifier.RotationParticleModifier;
 import org.andengine.entity.particle.modifier.ScaleParticleModifier;
 import org.andengine.entity.sprite.AnimatedSprite;
@@ -51,7 +49,7 @@ public class Meteoro extends AnimatedSprite {
 
     static int qtde_meteoro_destruida;
     static final ArrayList<Meteoro> meteoro_lista = new ArrayList<Meteoro>();
-    static int valor_max = GameRules.MAX_METEOR_VALUE; // mantido por compatibilidade com o codigo antigo
+    static int valor_max = GameRules.MAX_METEOR_VALUE;
     public static boolean cidade_intacta;
 
     int valor;
@@ -77,7 +75,6 @@ public class Meteoro extends AnimatedSprite {
     private int comprimento;
 
     Text valor_visivel;
-    private Font fonte;
 
     private boolean ja_destruido;
     private boolean atingiu_cidade;
@@ -85,11 +82,10 @@ public class Meteoro extends AnimatedSprite {
     private boolean setar_score;
     private int disparosErrados;
     private boolean usouBonus;
-    private int plus;
 
     private Sprite efeitos;
     private PointParticleEmitter ponto;
-    private ParticleSystem pedacos;
+    private ParticleSystem<Sprite> pedacos;
     private CircleOutlineParticleEmitter particleEmitter;
     private SpriteParticleSystem explosao;
 
@@ -227,7 +223,6 @@ public class Meteoro extends AnimatedSprite {
     }
 
     void valor_visivel(Font fonte) {
-        this.fonte = fonte;
         valor_visivel = new Text(0, 0, fonte, String.valueOf(valor), 100, this.getVertexBufferObjectManager());
         valor_visivel.setScale(2);
         valor_visivel.setPosition(this);
@@ -347,15 +342,15 @@ public class Meteoro extends AnimatedSprite {
         int tipo;
         int sorteio = aleatorio.nextInt(100);
         if (cid.saude <= 35 && sorteio < 55) {
-            tipo = 6; // dinheiro/reconstrucao
+            tipo = 6;
         } else if (sorteio < 35) {
-            tipo = 4; // reparo rapido
+            tipo = 4;
         } else if (sorteio < 55) {
-            tipo = 5; // escudo
+            tipo = 5;
         } else if (sorteio < 82) {
-            tipo = 6; // dinheiro/reconstrucao
+            tipo = 6;
         } else {
-            tipo = 7; // bomba
+            tipo = 7;
         }
 
         mudar_tipo(tipo);
@@ -394,8 +389,7 @@ public class Meteoro extends AnimatedSprite {
         cidade.aumentou_saude = false;
         switch (tipo) {
             case 4:
-                plus = 10;
-                cidade.recuperarSaude(plus);
+                cidade.recuperarSaude(10);
                 atividade.texto_animado("Reparo +10", .2f, 1f, .2f, this, 0);
                 break;
             case 5:
@@ -403,8 +397,7 @@ public class Meteoro extends AnimatedSprite {
                 atividade.texto_animado("Escudo ativado", .2f, .8f, 1f, this, 0);
                 break;
             case 6:
-                plus = 25;
-                cidade.recuperarSaude(plus);
+                cidade.recuperarSaude(25);
                 atividade.texto_animado("Reconstrucao +25", 1f, .85f, .1f, this, 0);
                 break;
             case 7:
