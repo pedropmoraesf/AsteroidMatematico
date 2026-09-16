@@ -1,619 +1,563 @@
 package br.grassinimoraes.divasteroides;
-import org.andengine.entity.sprite.*;
-import org.andengine.opengl.texture.region.*;
-import org.andengine.opengl.vbo.*;
-import org.andengine.extension.physics.box2d.*;
-import com.badlogic.gdx.physics.box2d.*;
-import java.util.*;
-import org.andengine.entity.text.*;
-import org.andengine.opengl.font.*;
-import org.andengine.util.adt.align.*;
-import org.andengine.entity.primitive.*;
-import org.andengine.extension.physics.box2d.util.*;
-import org.andengine.extension.physics.box2d.util.constants.*;
-import com.badlogic.gdx.math.*;
-import android.util.*;
-import org.andengine.util.modifier.*;
-import org.andengine.entity.modifier.*;
-import org.andengine.entity.particle.emitter.*;
-import org.andengine.entity.particle.*;
-import org.andengine.entity.*;
-import org.andengine.entity.particle.initializer.*;
-import org.andengine.entity.particle.modifier.*;
-import android.opengl.*;
-import org.andengine.engine.*;
-import org.andengine.engine.handler.timer.*;
-import org.andengine.input.touch.*;
 
-public class Meteoro extends AnimatedSprite
-{
-
-	private FixtureDef metf;
-
-	private PhysicsConnector fc_met;
-
-	private Body metb;
-
-	private float velocidade_x;
-
-	Random aleatorio = new Random();
-
-	static int qtde_meteoro_destruida;
-
-	int valor;
-
-	Text valor_visivel;
-
-	static ArrayList<Meteoro> meteoro_lista=new ArrayList<Meteoro>();
-
-//	static Boolean destroi_tudo=false;
-
-	//boolean destruido=false;
-
-	Rectangle alca;
-
-	AnimatedSprite alvo;
-
-	float velocidade_y;
-
-	private float sc_temp;
-
-	private PointParticleEmitter ponto;
-
-	private ParticleSystem pedacos;
-
-	private CircleOutlineParticleEmitter particleEmitter;
-
-	private SpriteParticleSystem explosao;
-
-	private PhysicsWorld mundo;
-
-  private Engine motor;
-
-  private int voltar;
-
-   int valor_int;
-   static int valor_max=500,valor_min=Math.round(valor_max*.1f);
-
-  int pontos;
-
-  private int largura;
-
-  private MainActivity atividade;
-
-  private ParallelEntityModifier pem;
-
-  private boolean ja_destruido=false;
-
-  private long memoria_usada;
-
-  private TiledTextureRegion text;
-
-  private Sprite efeitos;
-
-  private Font fonte;
-
-  private Text texto_anim;
-
-  private int plus;
-  
-  private boolean atingiu_cidade;
-
-  private static int fator_pontuacao = (int)Math.round(Math.log(valor_max*Math.exp(8)));
-
-  int pontuacao;
-
-  private static boolean destroi_tudo = false;
-
-  int fatores_primos[]={2,3,5,7,11,13};
-
-  private int comprimento;
-
-  private SequenceEntityModifier seqm2;
-
-  private boolean atingiu_canhao=false;
-
-  private Boolean setar_score;
-
-  public static boolean cidade_intacta;
-
-  public boolean dividiu;
-
-  public int disparos;
-
-  private int soma_expoentes;
-
-
-  Meteoro(float x, float y, int qtde_met_dest,  TiledTextureRegion text, VertexBufferObjectManager vert)
-	{
-		super(x, y, text, vert);
-	    this.valor = this.retornar_valor(qtde_met_dest);
-		meteoro_lista.add(this);
-		this.setScale((valor > 20) ?10: (valor < 8) ?4: valor / 2);		//scale muda conforme o numero
-	    this.setCurrentTileIndex(aleatorio.nextInt(4));
-	    this.text=text;
-		//implementar um update para checar quando se choca contra o alvo
-		//fazer o genericpool da classe meteoropool estender esta classe
-		//criar uma classe projetil e fazer o mesmo com o generic pool da classe projetilpool
-	}
-
-  static void resetar_variaveis_estaticas(){
-	qtde_meteoro_destruida=0;
-	if(meteoro_lista.size()>0)meteoro_lista.removeAll(meteoro_lista);
-	destroi_tudo=false;
-	cidade_intacta=false;
-  }
-
-	void construir_corpo(MainActivity atividade, int CAMERA_WIDTH, int CAMERA_HEIGHT)
-	{
-	    destroi_tudo=false;
-		ja_destruido=false;
-	    this.atividade=atividade;
-	    this.mundo = atividade.mundo;
-		this.motor = atividade.motor;
-		metf = atividade.metf;
-		metb = PhysicsFactory.createBoxBody(mundo, this, BodyDef.BodyType.DynamicBody, metf);
-		fc_met = new PhysicsConnector(this, metb);
-	    mundo.registerPhysicsConnector(fc_met);
-		metb.setUserData(this);
-		
-	  //qto maior o valor_int, menor sera valor_velocidade_cos, ou seja, dara um numero entre 0 e pi,
-	  //consequntemente, maior sera o seu cos
-	  //assim, qto maior o valor_int, menor sera a sua velocidad
-	  //assim, ficara proporcionalmente mais facil para o jogador
-
-		this.largura=CAMERA_WIDTH;
-		this.comprimento=CAMERA_HEIGHT;
-	    velocidade_y=.5f+(float)Math.abs(Math.sin((Math.PI)/(2+Math.log(valor))));
-		velocidade_x = (aleatorio.nextInt(CAMERA_WIDTH) - this.getX()) / (CAMERA_HEIGHT / velocidade_y);//PhysicsConstants.PIXEL_TO_METER_RATIO_DEFAULT;
-        
-		
-	    this.registerEntityModifier(new LoopEntityModifier(new RotationModifier(1,0,(velocidade_x<0)?-360:360)));
-	
-
-	}
-
-	void mudar_tipo(final int i)
-	{
-				
-					Meteoro.this.setCurrentTileIndex(i);
-					Meteoro.this.meteoro_lista.remove(this);
-					Meteoro.this.setScale(2);
-					Meteoro.this.clearEntityModifiers();
-					Meteoro.this.registerEntityModifier(new LoopEntityModifier(
-															 new SequenceEntityModifier(
-																 new ScaleModifier(.5f, Meteoro.this.getScaleX(), Meteoro.this.getScaleX() * 1.5f),
-																 new ScaleModifier(.5f, 1.5f * Meteoro.this.getScaleX(), Meteoro.this.getScaleX()))));
-					Meteoro.this.valor_visivel.clearUpdateHandlers();
-					Meteoro.this.valor_visivel.clearEntityModifiers();
-					Meteoro.this.valor_visivel.detachSelf();
-				
-		
-	}
-
-	
-
-
-	void destruir_corpo(Boolean setar_score)
-	{
-			        //imforma q ja foi destruido, para nao entrar no loop do timer
-		         	ja_destruido=true;
-					this.setar_score=setar_score;
-				    //animacao meteoro semdo dedtruido
-				    animar_explosoes(Meteoro.this);
-					
-				
-					
-				    //remover o sprite
-					Meteoro.this.clearUpdateHandlers();
-					Meteoro.this.clearEntityModifiers();
-					Meteoro.this.setVisible(false);
-					Meteoro.this.detachSelf();
-					
-					//remover da lista
-					meteoro_lista.remove(Meteoro.this);
-
-					//remover fisica
-					Meteoro.this.mundo.unregisterPhysicsConnector(Meteoro.this.fc_met);//mundo.getPhysicsConnectorManager().findPhysicsConnectorByShape(sprite));
-					Meteoro.this.metb.setActive(false);
-					Meteoro.this.mundo.destroyBody(Meteoro.this.metb);
-					
-					
-					//remover o texto
-					Meteoro.this.valor_visivel.clearUpdateHandlers();
-					Meteoro.this.valor_visivel.clearEntityModifiers();
-					Meteoro.this.valor_visivel.detachSelf();
-					
-
-	}
-
-	@Override
-	protected void onManagedUpdate(float pSecondsElapsed)
-	{
-	
-
-		if (metb != null)
-	  {    // velocidade_y=25f+(float)Math.abs(Math.sin((Math.PI)/(2+Math.log(valor))));
-			metb.setLinearVelocity(velocidade_x, -velocidade_y);
-			
-		}
-
-		valor_visivel.setText("" + valor);
-		valor_visivel.setPosition(this);
-	    valor_visivel.setAutoWrapWidth(this.getWidthScaled());
-		if((destroi_tudo&&!ja_destruido||atingiu_canhao)){
-		  
-		  motor.runOnUpdateThread(new Runnable(){
-
-			  public void run(){
-				
-				Meteoro.this.destruir_corpo(false);
-			  }});
-		  
-		}
-		
-		if(this.collidesWith(atividade.canhao)){
-		  atingir_canhao(atividade.canhao);
-		  
-		}
-
-		super.onManagedUpdate(pSecondsElapsed);
-	}
-
-	private void atingir_canhao(Canhao co)
-	{
-	  
-	   atividade.cidade_grande.atingir_cidade(1,this);
-	   co.desativar_canhao(this);
-	   atingiu_canhao=true;
-	  // TODO: Implement this method
-	}
-
-	void valor_visivel(Font fonte)
-	{
-	    this.fonte=fonte;
-		valor_visivel = new Text(0, 0, fonte, "" + valor, 100, this.getVertexBufferObjectManager());
-		sc_temp = this.getScaleX() / 4;
-		valor_visivel.setScale(2);
-		valor_visivel.setPosition((this.getWidth()) / 2, (this.getHeight()) / 2);
-        
-		valor_visivel.setHorizontalAlign(HorizontalAlign.CENTER);
-
-
-	}
-	
-  private int retornar_valor(int qtde_met_dest){
-	  try{
-       //expoentes
-	   soma_expoentes=0;
-	   valor_int=1;
-	   //qtde_met_dest=(qtde_met_dest>26)?(30+qtde_met_dest):qtde_met_dest;
-	   for(int i=0;i<fatores_primos.length;i++){
-		  
-		  
-		  int p =(qtde_met_dest>30)?(fatores_primos[aleatorio.nextInt(fatores_primos.length)]):fatores_primos[i];
-	      int pot=(qtde_met_dest<p)?0:(int)Math.round(Math.random()*qtde_met_dest/p);
-		  int pot_max=(int)(Math.log(valor_max)/Math.log(p));
-		  pot=(pot>pot_max)?Math.round(pot_max/2):pot;
-	
-		  //pot=(int) (pot>Math.log(valor_max)?Math.round(Math.log(valor_max)):pot);
-		  
-		  int v=(int) Math.pow(p,pot);
-		  
-		  if(valor_int*v>valor_max){
-			if(fatores_primos[i]==13){
-			  while(valor_int<valor_min){
-			    valor_int*=fatores_primos[aleatorio.nextInt(fatores_primos.length)];
-			    soma_expoentes+=1;
-			  }
-			  break;
-			}
-			continue;
-			}
-		  
-		  valor_int*=v;//setar valores
-		  
-		  soma_expoentes+=pot;
-		}
-		valor_int=(valor_int<2)?2:(valor_int>valor_max)?valor_min:valor_int;
-		this.pontuacao=((soma_expoentes<1)?1:(valor_int==valor_min)?4:soma_expoentes)*fator_pontuacao;//a pontuacao relativa a este meteoro e conforme a qtde de divisores primos de seu valor
-		
-	  }
-	  catch(Exception e)
-	  {valor_int=8;pontuacao=3*fator_pontuacao;e.printStackTrace();}
-	  
-	  return valor_int;
-	}
-	
-  public void atingir_meteoro(final Projetil proj,final Cidade cid)
-  {
-//colocar uma pontuacao dinamica
-	motor.runOnUpdateThread(new Runnable(){
-
-		
-
-
-		public void run(){
-		  if (Meteoro.this.getCurrentTileIndex() < 4)
-		  {
-			proj.resetar_pos();
-			if(proj.divisor==0){
-			  destruicao_nuclear(cid);
-			}
-			else if (Meteoro.this.valor % proj.divisor == 0)
-			{
-			  Meteoro.this.disparos+=1;
-			  Meteoro.this.valor /= proj.divisor;
-			  float sc_temp2=Meteoro.this.getScaleX() * .90f;//diminuir a escala para um pouco mais de realismo
-			  Meteoro.this.setScale((sc_temp2 < 4) ?4: sc_temp2);
-              
-			  
-			  if (Meteoro.this.valor < 2 || proj.divisor==1)
-			  {
-
-				atividade.qtde_met_dest += 1;
-				cid.atingir_cidade(1,Meteoro.this);
-				//atividade.animar_explosoes(Meteoro.this);
-
-				boolean saude=(Math.random() > Math.random());
-				boolean plus=(6.25f * Math.random() > cid.saude);
-				boolean escudo=(Math.random() > Math.random());
-				boolean bombas=(Math.random() > Math.random());
-
-				boolean pega_item=(Math.pow(Math.random(),Math.log(cid.saude))>Math.random())&&(100*Math.random()>cid.saude*Math.random());
-
-				if(pega_item){
-				  Meteoro.this.mudar_tipo((saude)?4:(escudo)?5:(plus)?6:(bombas)?7:Meteoro.this.getCurrentTileIndex());
-				}
-                
-				//aqui sao criados textos de estimulo ao jogador
-				Meteoro.qtde_meteoro_destruida+=1;
-				if(Meteoro.qtde_meteoro_destruida%10==0){
-				 // Meteoro.qtde_meteoro_destruida=0;
-				  atividade.texto_animado("Você é um máximo!",0,0,1,null,1);//a cada dez meteoros destruidos sem q a cidade seja atingida
-				}
-				if(Meteoro.qtde_meteoro_destruida>50&&Meteoro.cidade_intacta){
-				  Meteoro.qtde_meteoro_destruida=0;
-				  atividade.texto_animado("Parabéns! Nenhum metoro atingiu a cidade!",0,0,1,null,1);//destruir maus de cinquenta meteoros sem.q a cidade tenha sido atingida
-				}
-				if(Meteoro.qtde_meteoro_destruida!=0&&disparos==soma_expoentes){//se o jogador destruir um meteoro dividindo pelos seus divisores
-				  String texto=(Math.random()>Math.random())?"Voce é bom em divisao!":
-					(Math.random()>Math.random())?"Continue Assim!":
-					(Math.random()>Math.random())?"Raciocinio Rapido!":
-					"Perfeito!";
-				  atividade.texto_animado(texto,0,0,1,null,1);
-				  
-				}
-				
-				
-				//ajustar score
-			//	pontuacao=Meteoro.this.pontos*fator_pontuacao;
-				atividade.setar_score(Meteoro.this);
-				
-				if(Meteoro.this.getCurrentTileIndex()<4){Meteoro.this.destruir_corpo(true);};// destruir_corpo(mundo);
-
-
-			  }
-			}else{Meteoro.this.disparos=-10;}}
-		  else
-		  {
-			escolher_itens(cid);
-		  }
-		}});
-
-
-	// TODO: Implement this method
-  }
-
- public void destruir_meteoro_e_atingir_cidade(final Cidade u1)
-  {
-//mostrar quanto perdeu de saude e tombar a barra
-   motor.runOnUpdateThread(new Runnable(){
-		public void run(){
-		  if(Meteoro.this.getCurrentTileIndex()<4){
-	       atingiu_cidade=true;
-		   u1.atingir_cidade(0,Meteoro.this);
-           Meteoro.qtde_meteoro_destruida=0;
-		   Meteoro.cidade_intacta=false;
-		 //  atividade.animar_explosoes(Meteoro.this);
-		   Meteoro.this.destruir_corpo(true);
-		  }else{
-			escolher_itens(u1);
-		  }
-		}});
-	// TODO: Implement this method
-  }
-
-  void escolher_itens(Cidade c){
-	int i=this.getCurrentTileIndex();
-	c.aumentou_saude=false;
-	switch(i){
-	  case 4:
-		//saude
-		plus=5;
-		c.saude+=plus;
-		this.destruir_corpo(true);
-		c.aumentou_saude=true;
-		break;
-	  case 5:
-		//campo de forca
-		atividade.campo_forca.ativar(c);
-		this.destruir_corpo(true);
-		break;
-	  case 6:
-		//saude maior
-		plus=15;
-		c.saude+=plus;
-		this.destruir_corpo(true);
-		c.aumentou_saude=true;
-		break;
-	  case 7:
-		//bombas
-		if(Math.random()>Math.random()){
-		  atividade.bomba_um=(atividade.bomba_um)?false:true;
-		}else{atividade.bomba_tudo=(atividade.bomba_tudo)?false:true;;}
-		this.destruir_corpo(true);
-		break;
-	}
-	//Log.e("teste",fogo_lista.size()+"/"+aumentou_saude);
-	
-  }
-  
-  void animar_explosoes(Meteoro met){
-//	try{
-//	  memoria_usada=((Runtime.getRuntime().freeMemory())/1024);
-//	}catch(Exception e){e.printStackTrace();memoria_usada=4000;}
-//	if(memoria_usada>.1*atividade.memoria_livre_minima){
-	  final float x=met.getX();
-	  final float y=met.getY();
-	  final float c=met.getScaleX();
-	  int i=met.getCurrentTileIndex();
-	  if(i<4){
-		if(setar_score){ atividade.texto_animado((atingiu_cidade)?("-"+String.format("%.0f",this.getScaleX())):("+"+this.pontuacao),1,(atingiu_cidade)?0:1,0,this,0);}
-		
-		IEntityFactory pedacosfact =new IEntityFactory(){
-		  public Sprite create(float pX,float pY){
-			AnimatedSprite pedacos=new AnimatedSprite(x,y,text,motor.getVertexBufferObjectManager());
-			
-			pedacos.animate(new long[]{50,50,50,50},0,3,true);
-
-			return pedacos;
-		  }};
-		explodir(x,y,c,1,0,0,pedacosfact);
-	  }
-	  else if(i==4||i==6){
-		//	
-		atividade.texto_animado("+"+plus,0,1,0,this,0);
-		IEntityFactory moedafact =new IEntityFactory(){
-		  public Sprite create(float pX,float pY){
-			Sprite moedinha=new Sprite(x,y,atividade.moeda,motor.getVertexBufferObjectManager());
-			//moedinha.animate(25);
-			moedinha.setScale(.5f);
-			return moedinha;
-		  }};
-
-
-		explodir(x,y,c,1-(float)Math.random(),(float)Math.random(),(float)Math.random(),moedafact);
-
-
-	  }
-	  else if(i==5){
-		IEntityFactory camposfact =new IEntityFactory(){
-		  public AnimatedSprite create(float pX,float pY){
-			AnimatedSprite campos=new AnimatedSprite(x,y,text,motor.getVertexBufferObjectManager());
-			//moedinha.animate(25);
-			campos.setScale(.5f);
-			campos.setCurrentTileIndex(4);
-			return campos;
-		  }};
-
-
-		explodir(x,y,c,1-(float)Math.random(),(float)Math.random(),(float)Math.random(),camposfact);
-
-	  }
-	  else if(i==7){
-		IEntityFactory bombasfact =new IEntityFactory(){
-		  public AnimatedSprite create(float pX,float pY){
-			AnimatedSprite bombas=new AnimatedSprite(x,y,text,motor.getVertexBufferObjectManager());
-			//moedinha.animate(25);
-			bombas.setScale(.5f);
-			bombas.setCurrentTileIndex(7);
-			return bombas;
-		  }};
-
-
-		explodir(x,y,c,1-(float)Math.random(),(float)Math.random(),(float)Math.random(),bombasfact);
-
-	  }
-	
-
-  }
-
-
-
-
-
-  void explodir(final float x,final float y,float sc,float x1,float x2,float x3, IEntityFactory moedas){
-	try{
-
-	  efeitos=new Sprite(x,y,atividade.efeito,this.getVertexBufferObjectManager());
-	  this.getParent().attachChild(efeitos);
-
-	  efeitos.registerEntityModifier(new ParallelEntityModifier(new ScaleModifier(2,0,2*sc),new AlphaModifier(2.5f,1,0)));
-
-
-	  particleEmitter = new CircleOutlineParticleEmitter(x, y, 10);
-	  explosao = new SpriteParticleSystem(particleEmitter, 10, 50, 5, atividade.fumaca, this.getVertexBufferObjectManager());
-
-	  //explosao
-	  explosao.addParticleInitializer(new ColorParticleInitializer<Sprite>(x1, x2, x3));
-	  explosao.addParticleInitializer(new AlphaParticleInitializer<Sprite>(0));
-	  if(x1!=1){explosao.addParticleInitializer(new BlendFunctionParticleInitializer<Sprite>(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE));}
-	  explosao.addParticleInitializer(new VelocityParticleInitializer<Sprite>(-2, 2, -10, -10));
-	  explosao.addParticleInitializer(new RotationParticleInitializer<Sprite>(0.0f, 360.0f));
-	  explosao.addParticleInitializer(new ExpireParticleInitializer<Sprite>(2f));
-	  explosao.addParticleModifier(new ScaleParticleModifier<Sprite>(0, 0.5f, sc, 2*sc));
-	  explosao.addParticleModifier(new ScaleParticleModifier<Sprite>(.75f, 1f, 2*sc, 0f));
-	  explosao.addParticleModifier(new ColorParticleModifier<Sprite>(0, 0.2f, x1, x2, x3, 1-x3, 1-x2, 1-x1));
-	  explosao.addParticleModifier(new ColorParticleModifier<Sprite>(0.3f, 1.5f, 1-x3,1- x2,1- x1, x1, x2, x3));
-	  explosao.addParticleModifier(new AlphaParticleModifier<Sprite>(0, .5f, 0, 1));
-	  explosao.addParticleModifier(new AlphaParticleModifier<Sprite>(2f, 5f, 1, 0));
-
-	  //destrocos
-	  ponto=new PointParticleEmitter(x,y);
-
-	  pedacos=new ParticleSystem(moedas,ponto,5*sc, 12.5f*sc,Math.round(10*sc));
-
-	  pedacos.addParticleInitializer(new VelocityParticleInitializer(-50,50,0,-100));
-	  pedacos.addParticleInitializer(new AccelerationParticleInitializer(0,-9.8f));
-	  pedacos.addParticleModifier(new RotationParticleModifier(0,2.5f,0,360));
-	  pedacos.addParticleInitializer(new ExpireParticleInitializer<Sprite>(5f));
-	  pedacos.addParticleModifier(new AlphaParticleModifier(0,5,1,0));
-	  if(x1!=1){
-		pedacos.addParticleModifier(new ColorParticleModifier<Sprite>(0, 0.2f, 0, 1, 1, 0, 0, 1));
-		pedacos.addParticleModifier(new ColorParticleModifier<Sprite>(0.3f, 1.5f, 1, 0, 0, 1, 0, .5f));
-		pedacos.addParticleInitializer(new BlendFunctionParticleInitializer<Sprite>(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE));
-	  }
-	  if(!explosao.hasParent()){this.getParent().attachChild(explosao);}
-	  if(!pedacos.hasParent()){this.getParent().attachChild(pedacos);}
-
-	  atividade.destruir_explosao(2,explosao,efeitos);
-	  atividade.destruir_explosao(5,pedacos,efeitos);
-	}catch(Exception e){
-	  Log.e("Erro",e.toString()+e.getLocalizedMessage());
-	}
-  }
-  private void destruicao_nuclear(Cidade c){
-  SequenceEntityModifier seqm= new SequenceEntityModifier(
-	new AlphaModifier(5,0,1),new AlphaModifier(5,1,0)){
-	@Override
-	protected void onModifierStarted(IEntity e){
-	  e.setVisible(true);
-	  e.setPosition(largura/2,comprimento/2);
-	  //TODO Auto-generated method stub
-	  super.onModifierFinished(e);
-
-	}
-	@Override
-	protected void onModifierFinished(IEntity e){
-	  e.setVisible(false);
-	  e.setPosition(-largura,-comprimento);
-	  //TODO Auto-generated method stub
-	  super.onModifierFinished(e);
-
-	}
-  };
-  seqm.setAutoUnregisterWhenFinished(true);
-
-
-  atividade.efeito_rect.registerEntityModifier(seqm);
-
-  c.atingir_cidade(2,null);
-  atividade.qtde_met_dest+=this.meteoro_lista.size();
-  Meteoro.destroi_tudo=true;
-  }
-
-  
-  
-  
+import android.opengl.GLES20;
+import android.util.Log;
+
+import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.physics.box2d.Body;
+import com.badlogic.gdx.physics.box2d.BodyDef;
+import com.badlogic.gdx.physics.box2d.FixtureDef;
+
+import org.andengine.engine.Engine;
+import org.andengine.entity.IEntity;
+import org.andengine.entity.modifier.AlphaModifier;
+import org.andengine.entity.modifier.ColorModifier;
+import org.andengine.entity.modifier.LoopEntityModifier;
+import org.andengine.entity.modifier.ParallelEntityModifier;
+import org.andengine.entity.modifier.RotationModifier;
+import org.andengine.entity.modifier.ScaleModifier;
+import org.andengine.entity.modifier.SequenceEntityModifier;
+import org.andengine.entity.particle.IEntityFactory;
+import org.andengine.entity.particle.ParticleSystem;
+import org.andengine.entity.particle.SpriteParticleSystem;
+import org.andengine.entity.particle.emitter.CircleOutlineParticleEmitter;
+import org.andengine.entity.particle.emitter.PointParticleEmitter;
+import org.andengine.entity.particle.initializer.AccelerationParticleInitializer;
+import org.andengine.entity.particle.initializer.AlphaParticleInitializer;
+import org.andengine.entity.particle.initializer.BlendFunctionParticleInitializer;
+import org.andengine.entity.particle.initializer.ColorParticleInitializer;
+import org.andengine.entity.particle.initializer.ExpireParticleInitializer;
+import org.andengine.entity.particle.initializer.RotationParticleInitializer;
+import org.andengine.entity.particle.initializer.VelocityParticleInitializer;
+import org.andengine.entity.particle.modifier.AlphaParticleModifier;
+import org.andengine.entity.particle.modifier.ColorParticleModifier;
+import org.andengine.entity.particle.modifier.RotationParticleModifier;
+import org.andengine.entity.particle.modifier.ScaleParticleModifier;
+import org.andengine.entity.sprite.AnimatedSprite;
+import org.andengine.entity.sprite.Sprite;
+import org.andengine.entity.text.Text;
+import org.andengine.extension.physics.box2d.PhysicsConnector;
+import org.andengine.extension.physics.box2d.PhysicsFactory;
+import org.andengine.extension.physics.box2d.PhysicsWorld;
+import org.andengine.opengl.font.Font;
+import org.andengine.opengl.texture.region.TiledTextureRegion;
+import org.andengine.opengl.vbo.VertexBufferObjectManager;
+import org.andengine.util.adt.align.HorizontalAlign;
+
+import java.util.ArrayList;
+import java.util.Random;
+
+public class Meteoro extends AnimatedSprite {
+
+    static int qtde_meteoro_destruida;
+    static final ArrayList<Meteoro> meteoro_lista = new ArrayList<Meteoro>();
+    static int valor_max = GameRules.MAX_METEOR_VALUE; // mantido por compatibilidade com o codigo antigo
+    public static boolean cidade_intacta;
+
+    int valor;
+    int pontuacao;
+    public boolean dividiu;
+    public int disparos;
+
+    private final Random aleatorio = new Random();
+    private final TiledTextureRegion text;
+    private final int valorOriginal;
+    private final int fatoresOriginais;
+
+    private FixtureDef metf;
+    private PhysicsConnector fc_met;
+    private Body metb;
+    private PhysicsWorld mundo;
+    private Engine motor;
+    private MainActivity atividade;
+
+    private float velocidade_x;
+    private float velocidade_y;
+    private int largura;
+    private int comprimento;
+
+    Text valor_visivel;
+    private Font fonte;
+
+    private boolean ja_destruido;
+    private boolean atingiu_cidade;
+    private boolean atingiu_canhao;
+    private boolean setar_score;
+    private int disparosErrados;
+    private boolean usouBonus;
+    private int plus;
+
+    private Sprite efeitos;
+    private PointParticleEmitter ponto;
+    private ParticleSystem pedacos;
+    private CircleOutlineParticleEmitter particleEmitter;
+    private SpriteParticleSystem explosao;
+
+    Meteoro(float x, float y, int qtde_met_dest, TiledTextureRegion text, VertexBufferObjectManager vert) {
+        super(x, y, text, vert);
+        this.text = text;
+        this.valor = GameRules.generateMeteorValue(aleatorio, qtde_met_dest);
+        this.valorOriginal = this.valor;
+        this.fatoresOriginais = Math.max(1, GameRules.primeFactorCount(this.valor));
+        this.pontuacao = GameRules.scoreForMeteor(this.valorOriginal, 0, false);
+        meteoro_lista.add(this);
+
+        this.setScale(GameRules.meteorScaleFor(this.valor));
+        this.setCurrentTileIndex(aleatorio.nextInt(4));
+    }
+
+    static void resetar_variaveis_estaticas() {
+        qtde_meteoro_destruida = 0;
+        meteoro_lista.clear();
+        cidade_intacta = true;
+        valor_max = GameRules.MAX_METEOR_VALUE;
+    }
+
+    int getValor() {
+        return valor;
+    }
+
+    int getValorOriginal() {
+        return valorOriginal;
+    }
+
+    void construir_corpo(MainActivity atividade, int cameraWidth, int cameraHeight) {
+        ja_destruido = false;
+        atingiu_cidade = false;
+        atingiu_canhao = false;
+        this.atividade = atividade;
+        this.mundo = atividade.mundo;
+        this.motor = atividade.motor;
+        this.metf = atividade.metf;
+        this.largura = cameraWidth;
+        this.comprimento = cameraHeight;
+
+        metb = PhysicsFactory.createBoxBody(mundo, this, BodyDef.BodyType.DynamicBody, metf);
+        fc_met = new PhysicsConnector(this, metb);
+        mundo.registerPhysicsConnector(fc_met);
+        metb.setUserData(this);
+
+        float baseSpeed = .52f + (float) Math.abs(Math.sin(Math.PI / (2 + Math.log(Math.max(2, valor)))));
+        velocidade_y = baseSpeed * GameRules.getMeteorSpeedMultiplier();
+        float destinoX = aleatorio.nextInt(cameraWidth);
+        velocidade_x = (destinoX - this.getX()) / (cameraHeight / Math.max(.20f, velocidade_y));
+
+        this.registerEntityModifier(new LoopEntityModifier(
+                new RotationModifier(1f, 0, (velocidade_x < 0) ? -360 : 360)));
+    }
+
+    void mudar_tipo(final int tipo) {
+        this.setCurrentTileIndex(tipo);
+        meteoro_lista.remove(this);
+        this.setScale(2.5f);
+        this.clearEntityModifiers();
+        this.registerEntityModifier(new LoopEntityModifier(
+                new SequenceEntityModifier(
+                        new ScaleModifier(.45f, 2.3f, 2.8f),
+                        new ScaleModifier(.45f, 2.8f, 2.3f))));
+        atualizarTextoVisivel();
+    }
+
+    void destruir_corpo(Boolean contabilizarEfeito) {
+        if (ja_destruido) {
+            return;
+        }
+        ja_destruido = true;
+        this.setar_score = contabilizarEfeito != null && contabilizarEfeito;
+
+        animar_explosoes(this);
+
+        this.clearUpdateHandlers();
+        this.clearEntityModifiers();
+        this.setVisible(false);
+        if (this.hasParent()) {
+            this.detachSelf();
+        }
+        meteoro_lista.remove(this);
+
+        try {
+            if (mundo != null && fc_met != null) {
+                mundo.unregisterPhysicsConnector(fc_met);
+            }
+            if (mundo != null && metb != null) {
+                metb.setActive(false);
+                mundo.destroyBody(metb);
+            }
+        } catch (Exception e) {
+            Log.w("Meteoro", "Falha ao remover corpo fisico: " + e.getMessage());
+        }
+
+        if (valor_visivel != null) {
+            valor_visivel.clearUpdateHandlers();
+            valor_visivel.clearEntityModifiers();
+            if (valor_visivel.hasParent()) {
+                valor_visivel.detachSelf();
+            }
+        }
+    }
+
+    @Override
+    protected void onManagedUpdate(float pSecondsElapsed) {
+        if (metb != null && !ja_destruido) {
+            metb.setLinearVelocity(velocidade_x, -velocidade_y);
+        }
+
+        atualizarTextoVisivel();
+
+        if (!ja_destruido && atividade != null && atividade.canhao != null && this.collidesWith(atividade.canhao)) {
+            atingir_canhao(atividade.canhao);
+        }
+
+        super.onManagedUpdate(pSecondsElapsed);
+    }
+
+    private void atingir_canhao(Canhao canhao) {
+        if (atingiu_canhao || ja_destruido || getCurrentTileIndex() >= 4) {
+            return;
+        }
+        atividade.cidade_grande.atingir_cidade(1, this);
+        canhao.desativar_canhao(this);
+        atingiu_canhao = true;
+        motor.runOnUpdateThread(new Runnable() {
+            @Override
+            public void run() {
+                destruir_corpo(false);
+            }
+        });
+    }
+
+    void valor_visivel(Font fonte) {
+        this.fonte = fonte;
+        valor_visivel = new Text(0, 0, fonte, String.valueOf(valor), 100, this.getVertexBufferObjectManager());
+        valor_visivel.setScale(2);
+        valor_visivel.setPosition(this);
+        valor_visivel.setHorizontalAlign(HorizontalAlign.CENTER);
+        atualizarTextoVisivel();
+    }
+
+    private void atualizarTextoVisivel() {
+        if (valor_visivel == null) {
+            return;
+        }
+        int tipo = getCurrentTileIndex();
+        if (tipo < 4) {
+            valor_visivel.setText(String.valueOf(valor));
+        } else if (tipo == 4) {
+            valor_visivel.setText("+10");
+        } else if (tipo == 5) {
+            valor_visivel.setText("ESCUDO");
+        } else if (tipo == 6) {
+            valor_visivel.setText("$25");
+        } else {
+            valor_visivel.setText("BOMBA");
+        }
+        valor_visivel.setPosition(this);
+        valor_visivel.setAutoWrapWidth(Math.max(40, this.getWidthScaled() * 2));
+    }
+
+    public void atingir_meteoro(final Projetil proj, final Cidade cid) {
+        if (ja_destruido) {
+            return;
+        }
+
+        motor.runOnUpdateThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ja_destruido) {
+                    return;
+                }
+
+                if (getCurrentTileIndex() >= 4) {
+                    proj.resetar_pos();
+                    escolher_itens(cid);
+                    return;
+                }
+
+                final int divisor = proj.divisor;
+                proj.resetar_pos();
+
+                if (divisor == 0) {
+                    usouBonus = true;
+                    destruicao_nuclear(cid);
+                    return;
+                }
+
+                if (divisor == 1) {
+                    usouBonus = true;
+                    atividade.qtde_met_dest += 1;
+                    atividade.texto_animado("Bomba de precisao!", 1, .75f, 0, Meteoro.this, 0);
+                    destruir_corpo(false);
+                    return;
+                }
+
+                final int antes = valor;
+                if (GameRules.canDivide(valor, divisor)) {
+                    dividiu = true;
+                    disparos += 1;
+                    valor /= divisor;
+                    efeitoDaDivisao(true);
+                    atividade.texto_animado(antes + " / " + divisor + " = " + valor,
+                            .25f, 1f, .25f, Meteoro.this, 0);
+
+                    float novaEscala = GameRules.meteorScaleFor(Math.max(GameRules.MIN_METEOR_VALUE, valor));
+                    setScale(Math.max(3.0f, novaEscala));
+
+                    if (valor <= 1) {
+                        concluirDestruicaoMatematica(cid);
+                    }
+                } else {
+                    dividiu = false;
+                    disparosErrados += 1;
+                    efeitoDaDivisao(false);
+                    atividade.texto_animado(divisor + " nao divide " + antes,
+                            1f, .2f, .2f, Meteoro.this, 0);
+                    atividade.vibrar(25);
+                }
+            }
+        });
+    }
+
+    private void concluirDestruicaoMatematica(Cidade cid) {
+        atividade.qtde_met_dest += 1;
+        Meteoro.qtde_meteoro_destruida += 1;
+        pontuacao = GameRules.scoreForMeteor(valorOriginal, disparosErrados, usouBonus);
+
+        if (pontuacao > 0) {
+            atividade.setar_score(this);
+        }
+
+        if (disparosErrados == 0 && disparos == fatoresOriginais) {
+            atividade.texto_animado("Fatoracao perfeita!", .2f, .8f, 1f, null, 1);
+        } else if (Meteoro.qtde_meteoro_destruida > 0 && Meteoro.qtde_meteoro_destruida % 10 == 0) {
+            atividade.texto_animado("10 meteoros! Continue assim!", .2f, .8f, 1f, null, 1);
+        }
+
+        if (sortearItem(cid)) {
+            return;
+        }
+
+        destruir_corpo(true);
+    }
+
+    private boolean sortearItem(Cidade cid) {
+        if (aleatorio.nextFloat() >= GameRules.itemDropChance(cid.saude)) {
+            return false;
+        }
+
+        int tipo;
+        int sorteio = aleatorio.nextInt(100);
+        if (cid.saude <= 35 && sorteio < 55) {
+            tipo = 6; // dinheiro/reconstrucao
+        } else if (sorteio < 35) {
+            tipo = 4; // reparo rapido
+        } else if (sorteio < 55) {
+            tipo = 5; // escudo
+        } else if (sorteio < 82) {
+            tipo = 6; // dinheiro/reconstrucao
+        } else {
+            tipo = 7; // bomba
+        }
+
+        mudar_tipo(tipo);
+        return true;
+    }
+
+    public void destruir_meteoro_e_atingir_cidade(final Cidade cidade) {
+        if (ja_destruido) {
+            return;
+        }
+        motor.runOnUpdateThread(new Runnable() {
+            @Override
+            public void run() {
+                if (ja_destruido) {
+                    return;
+                }
+                if (getCurrentTileIndex() < 4) {
+                    atingiu_cidade = true;
+                    cidade.atingir_cidade(0, Meteoro.this);
+                    Meteoro.qtde_meteoro_destruida = 0;
+                    Meteoro.cidade_intacta = false;
+                    destruir_corpo(true);
+                } else {
+                    escolher_itens(cidade);
+                }
+            }
+        });
+    }
+
+    void escolher_itens(Cidade cidade) {
+        if (ja_destruido) {
+            return;
+        }
+
+        int tipo = this.getCurrentTileIndex();
+        cidade.aumentou_saude = false;
+        switch (tipo) {
+            case 4:
+                plus = 10;
+                cidade.recuperarSaude(plus);
+                atividade.texto_animado("Reparo +10", .2f, 1f, .2f, this, 0);
+                break;
+            case 5:
+                atividade.campo_forca.ativar(cidade);
+                atividade.texto_animado("Escudo ativado", .2f, .8f, 1f, this, 0);
+                break;
+            case 6:
+                plus = 25;
+                cidade.recuperarSaude(plus);
+                atividade.texto_animado("Reconstrucao +25", 1f, .85f, .1f, this, 0);
+                break;
+            case 7:
+                if (aleatorio.nextBoolean()) {
+                    atividade.bomba_um = true;
+                    atividade.texto_animado("Bomba de precisao", 1f, .65f, .1f, this, 0);
+                } else {
+                    atividade.bomba_tudo = true;
+                    atividade.texto_animado("Bomba nuclear", 1f, .35f, .1f, this, 0);
+                }
+                break;
+            default:
+                return;
+        }
+        destruir_corpo(true);
+    }
+
+    private void efeitoDaDivisao(boolean correto) {
+        float r = correto ? .25f : 1f;
+        float g = correto ? 1f : .15f;
+        float b = correto ? .25f : .15f;
+
+        this.clearEntityModifiers();
+        this.registerEntityModifier(new SequenceEntityModifier(
+                new ColorModifier(.08f, getRed(), r, getGreen(), g, getBlue(), b),
+                new ColorModifier(.18f, r, 1f, g, 1f, b, 1f),
+                new LoopEntityModifier(new RotationModifier(1f, 0, (velocidade_x < 0) ? -360 : 360), 1)));
+    }
+
+    void animar_explosoes(Meteoro met) {
+        final float x = met.getX();
+        final float y = met.getY();
+        final float escala = Math.max(1.5f, met.getScaleX());
+        int tipo = met.getCurrentTileIndex();
+
+        if (tipo < 4) {
+            if (setar_score) {
+                String texto = atingiu_cidade
+                        ? ("-" + String.format("%.0f", GameRules.cityDamageFor(valorOriginal)))
+                        : (pontuacao > 0 ? ("+" + pontuacao) : "");
+                if (texto.length() > 0) {
+                    atividade.texto_animado(texto, 1, atingiu_cidade ? .15f : 1f, 0, this, 0);
+                }
+            }
+
+            IEntityFactory<Sprite> pedacosFactory = new IEntityFactory<Sprite>() {
+                @Override
+                public Sprite create(float pX, float pY) {
+                    AnimatedSprite fragmento = new AnimatedSprite(x, y, text, motor.getVertexBufferObjectManager());
+                    fragmento.animate(new long[]{50, 50, 50, 50}, 0, 3, true);
+                    fragmento.setScale(.65f);
+                    return fragmento;
+                }
+            };
+            explodir(x, y, escala, 1, .35f, .05f, pedacosFactory);
+        } else {
+            final int tile = tipo;
+            IEntityFactory<Sprite> itemFactory = new IEntityFactory<Sprite>() {
+                @Override
+                public Sprite create(float pX, float pY) {
+                    AnimatedSprite item = new AnimatedSprite(x, y, text, motor.getVertexBufferObjectManager());
+                    item.setCurrentTileIndex(tile);
+                    item.setScale(.7f);
+                    return item;
+                }
+            };
+            explodir(x, y, 2.5f, .15f, .8f, 1f, itemFactory);
+        }
+    }
+
+    void explodir(final float x, final float y, float escala,
+                  float r, float g, float b, IEntityFactory<Sprite> fabrica) {
+        try {
+            efeitos = new Sprite(x, y, atividade.efeito, this.getVertexBufferObjectManager());
+            if (this.getParent() != null) {
+                this.getParent().attachChild(efeitos);
+            } else if (atividade.cena_raiz.getChildScene() != null) {
+                atividade.cena_raiz.getChildScene().attachChild(efeitos);
+            }
+            efeitos.setColor(r, g, b);
+            efeitos.registerEntityModifier(new ParallelEntityModifier(
+                    new ScaleModifier(.65f, .25f, Math.max(2f, escala)),
+                    new AlphaModifier(.75f, 1, 0)));
+
+            particleEmitter = new CircleOutlineParticleEmitter(x, y, Math.max(6, escala * 1.2f));
+            explosao = new SpriteParticleSystem(particleEmitter, 8, 28, 28, atividade.fumaca,
+                    this.getVertexBufferObjectManager());
+            explosao.addParticleInitializer(new ColorParticleInitializer<Sprite>(r, g, b));
+            explosao.addParticleInitializer(new AlphaParticleInitializer<Sprite>(.85f));
+            explosao.addParticleInitializer(new BlendFunctionParticleInitializer<Sprite>(GLES20.GL_SRC_ALPHA, GLES20.GL_ONE));
+            explosao.addParticleInitializer(new VelocityParticleInitializer<Sprite>(-18, 18, -10, 28));
+            explosao.addParticleInitializer(new RotationParticleInitializer<Sprite>(0, 360));
+            explosao.addParticleInitializer(new ExpireParticleInitializer<Sprite>(1.4f));
+            explosao.addParticleModifier(new ScaleParticleModifier<Sprite>(0, .8f, .35f, 1.25f));
+            explosao.addParticleModifier(new AlphaParticleModifier<Sprite>(.5f, 1.4f, .85f, 0));
+
+            ponto = new PointParticleEmitter(x, y);
+            int maxParticulas = Math.max(10, Math.min(42, Math.round(5 * escala)));
+            pedacos = new ParticleSystem<Sprite>(fabrica, ponto, 8, 24, maxParticulas);
+            pedacos.addParticleInitializer(new VelocityParticleInitializer<Sprite>(-55, 55, -20, 80));
+            pedacos.addParticleInitializer(new AccelerationParticleInitializer<Sprite>(0, -24));
+            pedacos.addParticleModifier(new RotationParticleModifier<Sprite>(0, 1.8f, 0, 360));
+            pedacos.addParticleInitializer(new ExpireParticleInitializer<Sprite>(2.2f));
+            pedacos.addParticleModifier(new AlphaParticleModifier<Sprite>(1.0f, 2.2f, 1, 0));
+
+            if (!explosao.hasParent()) {
+                atividade.cena_raiz.getChildScene().attachChild(explosao);
+            }
+            if (!pedacos.hasParent()) {
+                atividade.cena_raiz.getChildScene().attachChild(pedacos);
+            }
+
+            atividade.destruir_explosao(1.5f, explosao, efeitos);
+            atividade.destruir_explosao(2.4f, pedacos, null);
+        } catch (Exception e) {
+            Log.e("Meteoro", "Erro em particulas: " + e.getMessage());
+        }
+    }
+
+    private void destruicao_nuclear(final Cidade cidade) {
+        SequenceEntityModifier flash = new SequenceEntityModifier(
+                new AlphaModifier(.18f, 0, .9f),
+                new AlphaModifier(.55f, .9f, 0)) {
+            @Override
+            protected void onModifierStarted(IEntity e) {
+                e.setVisible(true);
+                e.setPosition(largura / 2, comprimento / 2);
+                super.onModifierStarted(e);
+            }
+
+            @Override
+            protected void onModifierFinished(IEntity e) {
+                e.setVisible(false);
+                e.setPosition(-largura, -comprimento);
+                super.onModifierFinished(e);
+            }
+        };
+        flash.setAutoUnregisterWhenFinished(true);
+        atividade.efeito_rect.registerEntityModifier(flash);
+
+        cidade.atingir_cidade(2, null);
+
+        ArrayList<Meteoro> copia = new ArrayList<Meteoro>(meteoro_lista);
+        int destruidos = 0;
+        for (Meteoro meteoro : copia) {
+            if (meteoro != null && !meteoro.ja_destruido && meteoro.getCurrentTileIndex() < 4) {
+                meteoro.usouBonus = true;
+                meteoro.pontuacao = 0;
+                meteoro.destruir_corpo(false);
+                destruidos++;
+            }
+        }
+        atividade.qtde_met_dest += destruidos;
+        atividade.texto_animado("NUCLEAR: " + destruidos + " meteoros", 1f, .35f, .1f, null, 1);
+    }
 }
