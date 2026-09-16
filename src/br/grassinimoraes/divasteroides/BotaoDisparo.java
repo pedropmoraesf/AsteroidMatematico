@@ -1,191 +1,174 @@
 package br.grassinimoraes.divasteroides;
-import org.andengine.entity.sprite.*;
-import org.andengine.opengl.texture.region.*;
-import org.andengine.opengl.vbo.*;
-import org.andengine.entity.text.*;
-import org.andengine.util.adt.align.*;
-import org.andengine.opengl.font.*;
-import org.andengine.input.touch.*;
-import org.andengine.entity.modifier.*;
-import org.andengine.entity.*;
-import org.andengine.util.adt.color.*;
 
-public class BotaoDisparo extends AnimatedSprite
-{
+import org.andengine.entity.IEntity;
+import org.andengine.entity.modifier.AlphaModifier;
+import org.andengine.entity.modifier.ScaleModifier;
+import org.andengine.entity.modifier.SequenceEntityModifier;
+import org.andengine.entity.sprite.AnimatedSprite;
+import org.andengine.entity.text.Text;
+import org.andengine.input.touch.TouchEvent;
+import org.andengine.opengl.font.Font;
+import org.andengine.opengl.texture.region.TiledTextureRegion;
+import org.andengine.opengl.vbo.VertexBufferObjectManager;
+import org.andengine.util.adt.align.HorizontalAlign;
 
+public class BotaoDisparo extends AnimatedSprite {
 
-  boolean cooldown_disp;
+    static int qtde = 0;
+    public static boolean canhao_desligado;
 
-  private SequenceEntityModifier scm;
+    private boolean cooldown_disp;
+    private int tipo;
+    private int municao;
+    private final AnimatedSprite canhao;
+    private final MainActivity atividade;
 
-  private int primo;
-  
-  static int qtde=0;
+    BotaoDisparo(float x, float y, TiledTextureRegion text, AnimatedSprite canhao,
+                 MainActivity atividade, VertexBufferObjectManager vert) {
+        super(x, y, text, vert);
+        this.setScale(8f);
+        this.canhao = canhao;
+        this.atividade = atividade;
+    }
 
-  private int tipo;
+    static void resetar_variaveis_estaticas() {
+        canhao_desligado = false;
+        qtde = 0;
+    }
 
-  private AlphaModifier am1,am2;
+    void setar_interior(int indice, Font fonte) {
+        this.tipo = indice;
+        this.setAlpha(indice >= 6 ? 0 : .30f);
 
-  private AnimatedSprite canhao;
+        if (indice < GameRules.PRIME_AMMO.length) {
+            this.municao = GameRules.PRIME_AMMO[indice];
+            this.setCurrentTileIndex(0);
+            adicionarRotulo(String.valueOf(municao), fonte, .28f);
+        } else if (indice == 6) {
+            // Bonus de alvo unico: conceitualmente multiplica o meteoro por zero.
+            this.municao = 1; // codigo interno reservado para a bomba de precisao
+            this.setCurrentTileIndex(1);
+            adicionarRotulo("x0", fonte, .20f);
+        } else {
+            // Bonus nuclear: multiplica todos os meteoros por zero e danifica a cidade.
+            this.municao = 0;
+            this.setCurrentTileIndex(2);
+            adicionarRotulo("x0*", fonte, .16f);
+        }
+    }
 
-  private float azul;
+    private void adicionarRotulo(String valor, Font fonte, float escala) {
+        Text texto = new Text(0, 0, fonte, valor, 16, this.getVertexBufferObjectManager());
+        texto.setPosition(this.getWidth() / 2, this.getHeight() / 2);
+        texto.setScale(escala);
+        texto.setHorizontalAlign(HorizontalAlign.CENTER);
+        this.attachChild(texto);
+    }
 
-  public static boolean canhao_desligado;
+    @Override
+    public boolean onAreaTouched(TouchEvent event, float localX, float localY) {
+        if (!event.isActionUp() || cooldown_disp || this.getAlpha() < .23f || canhao_desligado) {
+            return true;
+        }
 
-  private MainActivity atividade;
+        cooldown_disp = true;
+        SequenceEntityModifier press = new SequenceEntityModifier(
+                new ScaleModifier(.10f, this.getScaleX(), .78f * this.getScaleX()),
+                new ScaleModifier(.12f, .78f * this.getScaleX(), this.getScaleX())) {
+            @Override
+            public void onModifierFinished(IEntity item) {
+                cooldown_disp = false;
+                super.onModifierFinished(item);
+            }
+        };
+        press.setAutoUnregisterWhenFinished(true);
+        this.registerEntityModifier(press);
 
-  private Color cor;
-  
- // private boolean cooldown_bomba=true;
-  
-  
-  BotaoDisparo(float x,float y,TiledTextureRegion text,AnimatedSprite canhao,MainActivity atividade, VertexBufferObjectManager vert){
-	super(x,y,text,vert);
-	
-	this.setScale(8f);
-	this.canhao=canhao;
-	azul=canhao.getBlue();
-	this.atividade=atividade;
-	cor=this.getColor();
+        animarCanhao();
+        disparar();
+        return true;
+    }
 
-  }
-  
- static void resetar_variaveis_estaticas(){
-	canhao_desligado=false;
-	qtde=0;
-  }
-  
-   void setar_interior(int i,Font fonte){
-    this.tipo=i;
-	 this.setAlpha((i==6||i==7)?0:.25f);
-	if(i<6){
-	  this.setCurrentTileIndex(0);
-	  String valor = (i==0)?"2":(i==1)?"3":(i==2)?"5":(i==3)?"7":(i==4)?"11":(i==5)?"13":"";
-	  Text valor_disparo = new Text(0,0,fonte,valor,100,this.getVertexBufferObjectManager());
+    private void animarCanhao() {
+        canhao.animate(new long[]{45, 45, 45, 45, 45, 45, 45, 45}, 0, 7, false,
+                new AnimatedSprite.IAnimationListener() {
+                    @Override
+                    public void onAnimationStarted(AnimatedSprite sprite, int initialLoopCount) {
+                    }
 
-	  valor_disparo.setPosition((this.getWidth())/2, ( this.getHeight())/2);
-	  valor_disparo.setScale(.25f);
-	  valor_disparo.setHorizontalAlign(HorizontalAlign.CENTER);
-	  this.attachChild(valor_disparo);
-	  
-	}else if(i==6){
-	 this.setCurrentTileIndex(1);
-	  
-	}else if(i==7){
-	  this.setCurrentTileIndex(2);
-	}
-  }
-  @Override
-  public boolean onAreaTouched(TouchEvent pSceneTouchEvent, float pTouchAreaLocalX, float pTouchAreaLocalY)
-  {
-	if(pSceneTouchEvent.isActionUp()&&(cooldown_disp==false)&&this.getAlpha()>=.23f&&!canhao_desligado){
-	  cooldown_disp=true;
+                    @Override
+                    public void onAnimationFrameChanged(AnimatedSprite sprite, int oldFrameIndex, int newFrameIndex) {
+                    }
 
+                    @Override
+                    public void onAnimationLoopFinished(AnimatedSprite sprite, int remainingLoopCount, int initialLoopCount) {
+                    }
 
-	  scm=new SequenceEntityModifier(new ScaleModifier(.250f,this.getScaleX(),.75f*this.getScaleX()),new ScaleModifier(.125f,.75f*this.getScaleX(),this.getScaleX())){
-		@Override
-		public void onModifierFinished(final IEntity item){
-		  cooldown_disp=false;
+                    @Override
+                    public void onAnimationFinished(AnimatedSprite sprite) {
+                        sprite.animate(new long[]{50, 50, 50, 50, 50, 50, 50, 50}, 8, 15, true);
+                    }
+                });
+    }
 
-		}
+    private void disparar() {
+        if (Projetil.projetil_lista.isEmpty()) {
+            return;
+        }
+        if (qtde >= Projetil.projetil_lista.size()) {
+            qtde = 0;
+        }
 
-	  };
-	  scm.setAutoUnregisterWhenFinished(true);
-	  
-	  this.registerEntityModifier(scm);
-	  //animacao do camhao disparando
+        Projetil projetil = Projetil.projetil_lista.get(qtde);
+        projetil.setar_velocidade(30, MainActivity.angulo);
+        projetil.divisor = municao;
 
-	  canhao.animate (new long[]{50,50,50,50,50,50,50,50}, 0, 7, false, new AnimatedSprite.IAnimationListener(){
+        int tile;
+        if (municao == 2) tile = 0;
+        else if (municao == 3) tile = 1;
+        else if (municao == 5) tile = 2;
+        else if (municao == 7) tile = 3;
+        else if (municao == 11) tile = 4;
+        else if (municao == 13) tile = 5;
+        else if (municao == 1) tile = 6;
+        else tile = 7;
+        projetil.setCurrentTileIndex(tile);
 
-		  @Override
-		  public void onAnimationStarted(AnimatedSprite p1, int p2)
-		  {
-			// TODO: Implement this method
-		  }
+        qtde++;
+        atividade.vibrar(municao <= 1 ? 20 : Math.min(70, 5 * municao));
 
-		  @Override
-		  public void onAnimationFrameChanged(AnimatedSprite p1, int p2, int p3)
-		  {
-			// TODO: Implement this method
-		  }
+        // Bonus e consumivel: some depois do disparo.
+        if (tipo >= 6) {
+            AlphaModifier consumir = new AlphaModifier(.35f, this.getAlpha(), 0);
+            consumir.setAutoUnregisterWhenFinished(true);
+            this.registerEntityModifier(consumir);
+        }
+    }
 
-		  @Override
-		  public void onAnimationLoopFinished(AnimatedSprite p1, int p2, int p3)
-		  {
-			// TODO: Implement this method
-		  }
+    @Override
+    protected void onManagedUpdate(float pSecondsElapsed) {
+        if (canhao_desligado && this.getRotation() == 0) {
+            this.setRotation(1 + 89 * (float) Math.random());
+            this.setColor(.25f, .25f, .25f);
+        } else if (!canhao_desligado && this.getRotation() != 0) {
+            this.setRotation(0);
+            this.setColor(1, 1, 1);
+        }
 
+        if (tipo == 6 && MainActivity.bomba_um) {
+            MainActivity.bomba_um = false;
+            revelarBonus();
+        } else if (tipo == 7 && MainActivity.bomba_tudo) {
+            MainActivity.bomba_tudo = false;
+            revelarBonus();
+        }
 
+        super.onManagedUpdate(pSecondsElapsed);
+    }
 
-		  @Override
-		  public void onAnimationFinished(AnimatedSprite p1)
-		  {
-			p1.animate (new long[]{50,50,50,50,50,50,50,50},8,15,true);
-			// TODO: Implement this method
-		  }
-
-
-		}
-	  );
-	  if(this.tipo<6){
-		try{primo= Integer.parseInt(""+((Text)this.getChildByIndex(0)).getText());}
-		catch(NumberFormatException e){primo=2;}
-		
-	  }else if(this.tipo==6||this.tipo==7){
-		primo=(tipo==6)?1:0;
-
-		am2 = new AlphaModifier(2, .25f, 0);
-		
-
-		am2.setAutoUnregisterWhenFinished(true);
-		
-		
-		
-		this.registerEntityModifier(am2);
-		//this.getChildByIndex(0).registerEntityModifier(am2);
-	  }
-	  //criacao do projetil
-	  
-	  if(qtde>4){qtde=0;}
-	  Projetil.projetil_lista.get(qtde).setar_velocidade(30,MainActivity.angulo);
-	  Projetil.projetil_lista.get(qtde).setCurrentTileIndex((primo==2)?0:(primo==3)?1:(primo==5)?2:(primo==7)?3:(primo==11)?4:(primo==13)?5:(primo==1)?6:(primo==0)?7:0);
-	  Projetil.projetil_lista.get(qtde).divisor=primo;
-	  qtde+=1;
-	  atividade.vibrar(6*primo);
-
-
-	}
-	return true;
-  }
-
-  @Override
-  protected void onManagedUpdate(float pSecondsElapsed)
-  {
-	if(canhao_desligado&&this.getRotation()==0){
-	  this.setRotation(1+89*(float)Math.random());
-	  this.setColor(0,0,0);
-	}else if(!canhao_desligado&&this.getRotation()!=0){
-	  this.setRotation(0);
-	  this.setColor(1,1,1);
-	}
-	if(this.tipo==6&&MainActivity.bomba_um){
-	  MainActivity.bomba_um=false;
-	  am1 = new AlphaModifier(2, 0, .25f);
-
-	  am1.setAutoUnregisterWhenFinished(true);
-	  this.registerEntityModifier(am1);
-	  //this.getChildByIndex(0).registerEntityModifier(am1);
-	}else if(this.tipo==7&&MainActivity.bomba_tudo){
-	  MainActivity.bomba_tudo=false;
-	  am1 = new AlphaModifier(2, 0, .25f);
-
-	  am1.setAutoUnregisterWhenFinished(true);
-	  this.registerEntityModifier(am1);
-	 // this.getChildByIndex(0).registerEntityModifier(am1);
-	}
-	// TODO: Implement this method
-	super.onManagedUpdate(pSecondsElapsed);
-  }
-
-  
+    private void revelarBonus() {
+        AlphaModifier aparecer = new AlphaModifier(.45f, 0, .30f);
+        aparecer.setAutoUnregisterWhenFinished(true);
+        this.registerEntityModifier(aparecer);
+    }
 }
