@@ -5,16 +5,32 @@ plugins {
 android {
     namespace 'org.andengine.extension.physics.box2d'
     compileSdk 28
+    ndkVersion '23.1.7779620'
 
     defaultConfig {
         minSdk 8
+
+        externalNativeBuild {
+            ndkBuild {
+                arguments 'APP_PLATFORM=android-21'
+                abiFilters 'arm64-v8a', 'x86_64'
+            }
+        }
     }
 
     sourceSets {
         main {
             manifest.srcFile 'src/main/AndroidManifest.xml'
             java.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/src']
+            // Mantem os binarios historicos para armeabi-v7a/x86.
+            // arm64-v8a e x86_64 sao recompilados pelo NDK abaixo.
             jniLibs.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/libs']
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path 'src/main/jni/Android.mk'
         }
     }
 
