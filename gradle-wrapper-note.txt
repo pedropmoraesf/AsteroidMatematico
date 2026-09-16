@@ -1,1 +1,0 @@
-O projeto foi validado com Gradle 7.5.1. O Android Studio pode configurar essa distribuição ao abrir o projeto.
