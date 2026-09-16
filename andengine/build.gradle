@@ -17,7 +17,11 @@ android {
     sourceSets {
         main {
             manifest.srcFile 'src/main/AndroidManifest.xml'
-            java.srcDirs = ['../third_party/AndEngine/src']
+            java {
+                srcDirs = ['../third_party/AndEngine/src']
+                exclude 'org/andengine/opengl/texture/atlas/bitmap/source/decorator/ColorSwapBitmapTextureAtlasSourceDecorator.java'
+                exclude 'org/andengine/opengl/texture/atlas/bitmap/source/decorator/ColorKeyBitmapTextureAtlasSourceDecorator.java'
+            }
             jniLibs.srcDirs = ['../third_party/AndEngine/libs']
         }
     }
