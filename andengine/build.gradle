@@ -1,0 +1,31 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'org.andengine'
+    compileSdk 28
+
+    defaultConfig {
+        minSdk 8
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            java.srcDirs = ['../third_party/AndEngine/src']
+            jniLibs.srcDirs = ['../third_party/AndEngine/libs']
+        }
+    }
+
+    useLibrary 'org.apache.http.legacy'
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}

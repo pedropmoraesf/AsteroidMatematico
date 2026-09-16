@@ -1,24 +1,20 @@
 plugins {
-    id 'com.android.application'
+    id 'com.android.library'
 }
 
 android {
-    namespace 'br.grassinimoraes.divasteroides'
+    namespace 'org.andengine.extension.physics.box2d'
     compileSdk 28
 
     defaultConfig {
-        applicationId 'br.grassinimoraes.divasteroides'
         minSdk 8
-        targetSdk 28
-        versionCode 1
-        versionName '1.0'
     }
 
     sourceSets {
         main {
             manifest.srcFile 'src/main/AndroidManifest.xml'
-            java.srcDirs = ['../src']
-            assets.srcDirs = ['../assets']
+            java.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/src']
+            jniLibs.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/libs']
         }
     }
 
@@ -30,5 +26,4 @@ android {
 
 dependencies {
     implementation project(':andengine')
-    implementation project(':andenginephysicsbox2d')
 }
