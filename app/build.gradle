@@ -1,0 +1,34 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'br.grassinimoraes.divasteroides'
+    compileSdk 28
+
+    defaultConfig {
+        applicationId 'br.grassinimoraes.divasteroides'
+        minSdk 8
+        targetSdk 28
+        versionCode 1
+        versionName '1.0'
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            java.srcDirs = ['../src']
+            assets.srcDirs = ['../assets']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation project(':andengine')
+    implementation project(':andenginephysicsbox2d')
+}

@@ -1,0 +1,29 @@
+plugins {
+    id 'com.android.library'
+}
+
+android {
+    namespace 'org.andengine.extension.physics.box2d'
+    compileSdk 28
+
+    defaultConfig {
+        minSdk 8
+    }
+
+    sourceSets {
+        main {
+            manifest.srcFile 'src/main/AndroidManifest.xml'
+            java.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/src']
+            jniLibs.srcDirs = ['../third_party/AndEnginePhysicsBox2DExtension/libs']
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation project(':andengine')
+}

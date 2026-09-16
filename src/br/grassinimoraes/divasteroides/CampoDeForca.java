@@ -1,5 +1,6 @@
 package br.grassinimoraes.divasteroides;
 import org.andengine.entity.primitive.*;
+import org.andengine.entity.IEntity;
 import org.andengine.opengl.vbo.*;
 import org.andengine.engine.camera.hud.*;
 import org.andengine.opengl.font.*;
@@ -71,7 +72,9 @@ private void ativar(boolean ativa){
 	
 	scm=new ScaleModifier(2,1,0){
 	  @Override
-	  public void onModifierFinished(CampoDeForca cf){
+	  protected void onModifierFinished(final IEntity pItem){
+		super.onModifierFinished(pItem);
+		CampoDeForca cf=(CampoDeForca)pItem;
 		cf.setPosition(-100,-100);
 		cf.setVisible(false);
 	  }
