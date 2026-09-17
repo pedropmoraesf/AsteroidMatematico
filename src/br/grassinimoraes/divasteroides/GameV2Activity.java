@@ -2,6 +2,7 @@ package br.grassinimoraes.divasteroides;
 
 import android.app.Activity;
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -89,7 +90,7 @@ public class GameV2Activity extends Activity {
 
     static final class Meteor {
         float x,y,radius,speed; int value, originalValue; Kind kind; Bonus bonus; int ammoValue;
-        MeteorMathV2.Quiz quiz; boolean dead, targetBlink; float blinkTime;
+        MeteorMathV2.Quiz quiz; boolean dead, targetBlink; float blinkTime, tailTimer;
         RectF bounds(){return new RectF(x-radius,y-radius,x+radius,y+radius);}
     }
 
@@ -99,7 +100,7 @@ public class GameV2Activity extends Activity {
     }
 
     final class GameView extends View implements Runnable {
-        static final int MENU_MAIN=0, MENU_HOW=1, MENU_OPTIONS=2, MENU_CREDITS=3;
+        static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -111,7 +112,7 @@ public class GameV2Activity extends Activity {
         final AudioBank audio;
         final RectF[] divisorRects=new RectF[MeteorMathV2.PRIMES.length];
         final RectF subMinus=new RectF(),subPlus=new RectF(),subUse=new RectF(),bombRect=new RectF(),repairRect=new RectF();
-        final RectF[] menuButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
+        final RectF[] menuButtons={new RectF(),new RectF(),new RectF(),new RectF()};
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,tailImg,targetImg;
         Bitmap cityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,fireImg,smokeImg,molduraSheet;
@@ -129,13 +130,23 @@ public class GameV2Activity extends Activity {
         int selectedMode=0;
         int menuPage=MENU_MAIN;
         boolean vibrationEnabled=true;
+        boolean laserEnabled=false;
+        int selectedDifficulty=0;
+        boolean scoreClearedNotice=false;
+        float scoreNoticeTimer=0f;
         float logicalW=800,logicalH=480,scaleX=1,scaleY=1;
 
-        final float cannonX=400f, cannonY=326f;
+        // Geometria do conjunto original: torre alta e canhao no topo.
+        final float cannonX=400f, cannonY=228f;
+        final float towerBaseY=390f;
         float cannonAngle=-90f;
         float cannonAnim=0f;
-        float shotTimer=0f, shotDuration=.17f, shotTargetX=400f, shotTargetY=200f;
+        float shotTimer=0f, shotDuration=.17f, shotStartX=400f, shotStartY=228f, shotTargetX=400f, shotTargetY=200f;
+        float fireParticleTimer=0f;
+        int destroyedTotal=0;
+        boolean scoreSaved=false;
 
+        // Equacao de movimento harmonico amortecido trazida da Cidade.java original.
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
         int lastImpactX=400;
@@ -151,6 +162,8 @@ public class GameV2Activity extends Activity {
             subImg=assetBitmap("graficos/subtrator.png"); planeCommercial=assetBitmap("graficos/aviao_comercial.png");
             planeMilitary=assetBitmap("graficos/aviao_militar.png"); bombImg=assetBitmap("graficos/bomba0.png");
             tailImg=assetBitmap("graficos/rastro_meteoro.png"); targetImg=assetBitmap("graficos/alvo_quiz.png");
+
+            // Assets historicos restaurados como base visual do jogo.
             cityImg=assetBitmap("graficos/cidade_grande.png"); turretSheet=assetBitmap("graficos/torre.png");
             cannonSheet=assetBitmap("graficos/canhao1.png"); meteorSheet=assetBitmap("graficos/meteoro e itens.png");
             projectileSheet=assetBitmap("graficos/projetil.png"); fireImg=assetBitmap("graficos/fogo.png");
@@ -181,7 +194,8 @@ public class GameV2Activity extends Activity {
         void resetGame(){
             meteors.clear();particles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-90;cannonAnim=0;shotTimer=0;
-            waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=8;waves.difficulty=0;
+            destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;
+            waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=8;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
             preWaveTimer=7.5f;spawnTimer=0;audio.playLong("sirene_80bpm_10.wav");
@@ -193,6 +207,8 @@ public class GameV2Activity extends Activity {
             updateCityShake(dt);
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
             if(shotTimer>0)shotTimer=Math.max(0,shotTimer-dt);
+            if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
+            updateCityFireParticles(dt);
             if(!running&&!preWave&&!gameOver)return;
             if(preWave){preWaveTimer-=dt;if(preWaveTimer<=0){preWave=false;running=true;audio.play("chuva_meteoros_inicio.wav");}return;}
             if(gameOver||quizOpen){updateParticles(dt);updateMilitary(dt);return;}
@@ -259,7 +275,7 @@ public class GameV2Activity extends Activity {
 
         void updateMeteors(float dt){
             Iterator<Meteor> it=meteors.iterator();while(it.hasNext()){
-                Meteor m=it.next();if(m.dead){it.remove();continue;}m.y+=m.speed*dt;
+                Meteor m=it.next();if(m.dead){it.remove();continue;}emitMeteorTrail(m,dt);m.y+=m.speed*dt;
                 if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){
                     commercial.active=false;commercial=null;audio.play("aviao_comercial_atingido.wav");damageCity(6,m.x,false);burst(m.x,m.y,Color.LTGRAY,18);m.dead=true;continue;
                 }
@@ -276,11 +292,17 @@ public class GameV2Activity extends Activity {
         void damageCity(float amount,float impactX,boolean nuclear){
             if(inv.shieldSeconds>0&&!nuclear){audio.play("bonus_escudo.wav");return;}
             cityHealth-=amount;lastImpactX=(int)impactX;audio.play("impacto_cidade.wav");startCityShake(amount,nuclear);
-            if(cityHealth<=0){cityHealth=0;gameOver=true;running=false;audio.play("game_over.wav");}
+            if(cityHealth<=0){cityHealth=0;gameOver=true;running=false;audio.play("game_over.wav");saveScore();}
         }
 
         void aimAndFire(Meteor m){
             cannonAngle=(float)Math.toDegrees(Math.atan2(m.y-cannonY,m.x-cannonX));
+            double rad=Math.toRadians(cannonAngle);
+            // O retangulo colorido dentro da "parabola" do sprite fica ligeiramente
+            // a frente do pivô. O projetil nasce nele, como no jogo original.
+            float muzzleOffset=12f;
+            shotStartX=cannonX+(float)Math.cos(rad)*muzzleOffset;
+            shotStartY=cannonY+(float)Math.sin(rad)*muzzleOffset;
             cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=m.x;shotTargetY=m.y;audio.play("disparo_canhao.wav");
         }
 
@@ -319,7 +341,7 @@ public class GameV2Activity extends Activity {
 
         void explode(Meteor m,boolean count,boolean guaranteedBonus){
             if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);
-            if(count){waves.countDestroyed();score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}
+            if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}
         }
 
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=32;b.radius=18;setupBonus(b);meteors.add(b);}
@@ -340,58 +362,58 @@ public class GameV2Activity extends Activity {
         void drawMenu(Canvas c){
             p.setColor(Color.rgb(3,10,25));c.drawRect(0,0,800,480,p);if(menuBg!=null)drawCenterCrop(c,menuBg,new RectF(0,0,800,480),.56f);
             p.setColor(Color.argb(45,0,8,20));c.drawRect(0,0,800,480,p);
-            if(menuPage==MENU_MAIN)drawMainMenu(c);else if(menuPage==MENU_HOW)drawHowTo(c);else if(menuPage==MENU_OPTIONS)drawOptions(c);else drawCredits(c);
+            if(menuPage==MENU_MAIN)drawMainMenu(c);else if(menuPage==MENU_SCORE)drawScores(c);else drawOptions(c);
         }
 
         void drawMainMenu(Canvas c){
-            drawText(c,"ASTEROIDE MATEMATICO",400,65,34,Color.WHITE,true);
-            drawText(c,"DEFENDA A CIDADE COM A MATEMATICA",400,91,14,Color.rgb(180,225,255),true);
-            String[] labels={"INICIAR JOGO","COMO JOGAR","OPCOES","CREDITOS","SAIR"};
-            float top=145;
+            drawText(c,"ASTEROIDE MATEMATICO",400,72,34,Color.WHITE,true);
+            String[] labels={"INICIAR","VER PONTUACAO","OPCOES","SAIR"};
+            float top=176;
             for(int i=0;i<labels.length;i++){
-                RectF r=menuButtons[i];r.set(292,top+i*50,508,top+38+i*50);drawMenuButton(c,r,labels[i],i==0);
+                RectF r=menuButtons[i];r.set(292,top+i*55,508,top+40+i*55);drawMenuButton(c,r,labels[i],i==0);
             }
         }
 
-        void drawHowTo(Canvas c){
-            drawDarkCard(c,105,55,695,405);drawText(c,"COMO JOGAR",400,90,28,Color.CYAN,true);
-            drawText(c,"Comece com os divisores 2 e 3. Divida o numero do meteoro ate chegar a 1.",400,132,15,Color.WHITE,true);
-            drawText(c,"Novos primos ate 31 aparecem como bonus e liberam novas municoes.",400,162,15,Color.WHITE,true);
-            drawText(c,"SUBTRATOR: escolha um valor e gaste essa carga para transformar numeros dificeis.",400,192,15,Color.WHITE,true);
-            drawText(c,"Meteoros verdes e amarelos abrem desafios de multiplicacao e adicao.",400,222,15,Color.WHITE,true);
-            drawText(c,"Acertando o quiz, o alvo trava e um aviao militar elimina o meteoro.",400,252,15,Color.WHITE,true);
-            drawText(c,"Proteja tambem os avioes comerciais e recolha dinheiro, vida e escudo.",400,282,15,Color.WHITE,true);
-            drawText(c,"A bomba 0 destroi qualquer numero, mas o impacto tambem abala a cidade.",400,312,15,Color.YELLOW,true);
-            drawMenuButton(c,new RectF(310,345,490,385),"VOLTAR",false);
+        void drawScores(Canvas c){
+            drawDarkCard(c,115,55,685,410);drawText(c,"PONTUACAO",400,92,30,Color.CYAN,true);
+            drawText(c,"DATA",195,126,14,Color.LTGRAY,true);drawText(c,"PONTOS",410,126,14,Color.LTGRAY,true);drawText(c,"METEOROS",570,126,14,Color.LTGRAY,true);
+            java.util.ArrayList<String[]> rows=new java.util.ArrayList<String[]>();
+            try{
+                SharedPreferences sp=getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE);
+                for(Object o:sp.getAll().values()){
+                    String[] v=String.valueOf(o).split("\\|");if(v.length>=3)rows.add(v);
+                }
+                java.util.Collections.sort(rows,new java.util.Comparator<String[]>(){public int compare(String[] a,String[] b){
+                    try{return Integer.parseInt(b[1])-Integer.parseInt(a[1]);}catch(Exception e){return 0;}
+                }});
+            }catch(Exception ignored){}
+            if(rows.isEmpty())drawText(c,"NENHUMA PONTUACAO SALVA",400,205,17,Color.WHITE,true);
+            else{int max=Math.min(7,rows.size());for(int i=0;i<max;i++){String[] v=rows.get(i);float y=158+i*29;drawText(c,v[0],195,y,12,Color.WHITE,true);drawText(c,v[1],410,y,14,Color.YELLOW,true);drawText(c,v[2],570,y,14,Color.WHITE,true);}}
+            drawMenuButton(c,new RectF(310,355,490,395),"VOLTAR",false);
+        }
+
+        String difficultyName(){
+            String[] n={"MUITO FACIL","FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];
         }
 
         void drawOptions(Canvas c){
-            drawDarkCard(c,190,75,610,385);drawText(c,"OPCOES",400,115,30,Color.CYAN,true);
-            drawMenuButton(c,new RectF(260,150,540,196),"SONS: "+(audio.enabled?"LIGADOS":"DESLIGADOS"),false);
-            drawMenuButton(c,new RectF(260,215,540,261),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);
-            drawText(c,"DIFICULDADE: PROGRESSIVA",400,300,17,Color.WHITE,true);
-            drawText(c,"Os numeros, velocidade e eventos aumentam gradualmente por onda.",400,326,13,Color.LTGRAY,true);
-            drawMenuButton(c,new RectF(310,340,490,380),"VOLTAR",false);
-        }
-
-        void drawCredits(Canvas c){
-            drawDarkCard(c,165,70,635,390);drawText(c,"CREDITOS",400,112,30,Color.CYAN,true);
-            drawText(c,"Asteroide Matematico",400,155,22,Color.WHITE,true);
-            drawText(c,"Projeto original de conclusao de curso - preservado e modernizado.",400,190,14,Color.WHITE,true);
-            drawText(c,"Graficos originais mantidos; novos elementos seguem a mesma identidade.",400,220,14,Color.WHITE,true);
-            drawText(c,"Versao modernizada: novas operacoes, bonus, avioes e progressao.",400,250,14,Color.WHITE,true);
-            drawText(c,"Sons gerados especificamente para esta versao do projeto.",400,280,14,Color.WHITE,true);
-            drawMenuButton(c,new RectF(310,330,490,372),"VOLTAR",false);
+            drawDarkCard(c,180,45,620,430);drawText(c,"OPCOES",400,82,30,Color.CYAN,true);
+            drawMenuButton(c,new RectF(245,105,555,148),"DIFICULDADE: "+difficultyName(),false);
+            drawMenuButton(c,new RectF(245,163,555,206),"MIRA LASER: "+(laserEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(245,221,555,264),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(245,279,555,322),"APAGAR SCORE",false);
+            if(scoreClearedNotice)drawText(c,"SCORE APAGADO",400,346,13,Color.YELLOW,true);
+            drawMenuButton(c,new RectF(310,365,490,407),"VOLTAR",false);
         }
 
         void drawGame(Canvas c){
             p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);
             c.save();c.translate(0,cityShakeOffset);
             drawCity(c);
+            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}
             for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);
             if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);
             drawCannon(c);drawProjectile(c);
-            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}
             c.restore();
             drawHud(c);
             if(preWave){p.setColor(Color.argb(125+(int)(70*Math.abs(Math.sin(preWaveTimer*4))),180,0,0));c.drawRect(0,0,800,390,p);drawText(c,"ALERTA - ONDA "+waves.wave,400,185,34,Color.WHITE,true);drawText(c,"METEOROS SE APROXIMANDO",400,225,20,Color.YELLOW,true);drawText(c,"UON...  UON...  UON...",400,275,19,Color.WHITE,true);}
@@ -403,36 +425,61 @@ public class GameV2Activity extends Activity {
 
         void drawCity(Canvas c){
             if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,315,800,390),pixel);else{p.setColor(Color.DKGRAY);c.drawRect(0,330,800,390,p);}
-            int flames=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);
-            for(int i=0;i<flames;i++){float x=55+(i*137+lastImpactX/3)%690;drawFire(c,x,337+(i%2)*12);}
+            int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);
+            for(int i=0;i<smokes;i++){float x=55+(i*137+lastImpactX/3)%690;drawSmoke(c,x,337+(i%2)*12);}
         }
 
-        void drawFire(Canvas c,float x,float y){
-            float pulse=1f+.12f*(float)Math.sin(SystemClock.uptimeMillis()/75.0+x);
-            if(smokeImg!=null){p.setAlpha(115);c.drawBitmap(smokeImg,null,new RectF(x-9,y-34,x+13,y-12),pixel);p.setAlpha(255);}
-            if(fireImg!=null)c.drawBitmap(fireImg,null,new RectF(x-13*pulse,y-25*pulse,x+13*pulse,y+1),pixel);
-            else{p.setColor(Color.rgb(255,90,20));c.drawRect(x-4,y-18,x+5,y,p);}
+        void drawSmoke(Canvas c,float x,float y){
+            if(smokeImg!=null){p.setAlpha(cityHealth<=30?155:115);c.drawBitmap(smokeImg,null,new RectF(x-9,y-34,x+13,y-12),pixel);p.setAlpha(255);}
+        }
+
+        void updateCityFireParticles(float dt){
+            if(cityHealth>30)return;
+            fireParticleTimer-=dt;if(fireParticleTimer>0)return;fireParticleTimer=.045f+.035f*rnd.nextFloat();
+            int count=2+(cityHealth<15?2:0);
+            for(int i=0;i<count;i++){
+                float x=55+rnd.nextFloat()*690f;float y=350+rnd.nextFloat()*25f;
+                int col=rnd.nextBoolean()?Color.rgb(255,80,15):Color.rgb(255,190,30);
+                particles.add(new Particle(x,y,-12+rnd.nextFloat()*24,-55-rnd.nextFloat()*55,.42f+rnd.nextFloat()*.35f,col,2+rnd.nextFloat()*3));
+            }
+        }
+
+        void emitMeteorTrail(Meteor m,float dt){
+            if(m.kind==Kind.BONUS)return;m.tailTimer-=dt;if(m.tailTimer>0)return;m.tailTimer=.035f+.035f*rnd.nextFloat();
+            int col=m.kind==Kind.MULT?Color.rgb(75,220,105):m.kind==Kind.ADD?Color.rgb(255,215,55):Color.rgb(255,145,30);
+            for(int i=0;i<2;i++)particles.add(new Particle(m.x-3+rnd.nextFloat()*6,m.y-m.radius*.75f,-7+rnd.nextFloat()*14,-12-rnd.nextFloat()*18,.25f+rnd.nextFloat()*.25f,col,1.5f+rnd.nextFloat()*2.5f));
+        }
+
+        void saveScore(){
+            if(scoreSaved||score<=0||destroyedTotal<=0)return;scoreSaved=true;
+            try{
+                SharedPreferences sp=getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE);
+                String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss",java.util.Locale.getDefault()).format(new java.util.Date());
+                int check=score%(destroyedTotal+1);sp.edit().putString(date,date+"|"+score+"|"+destroyedTotal+"|"+check).apply();
+            }catch(Exception ignored){}
         }
 
         void drawCannon(Canvas c){
             int towerFrame=(int)((SystemClock.uptimeMillis()/80)%8);
-            if(turretSheet!=null)drawTile(c,turretSheet,8,1,towerFrame,new RectF(cannonX-20,292,cannonX+20,365),pixel);
+            // A torre volta a ter a altura/proporcao do sprite original, com o topo
+            // encostando no centro do canhao.
+            if(turretSheet!=null)drawTile(c,turretSheet,8,1,towerFrame,new RectF(cannonX-21,cannonY,cannonX+21,towerBaseY),pixel);
             int frame=8;
             if(cannonAnim>0){float elapsed=.40f-cannonAnim;frame=Math.max(0,Math.min(7,(int)(elapsed/.05f)));}
             if(cannonSheet!=null){
-                c.save();c.rotate(cannonAngle+90f,cannonX,cannonY);drawTile(c,cannonSheet,8,2,frame,new RectF(cannonX-34,cannonY-34,cannonX+34,cannonY+34),pixel);c.restore();
+                c.save();c.rotate(cannonAngle,cannonX,cannonY);drawTile(c,cannonSheet,8,2,frame,new RectF(cannonX-33,cannonY-33,cannonX+33,cannonY+33),pixel);c.restore();
             }
         }
 
         void drawProjectile(Canvas c){
             if(shotTimer<=0)return;float t=1f-shotTimer/shotDuration;t=Math.max(0,Math.min(1,t));
-            float x=cannonX+(shotTargetX-cannonX)*t;float y=cannonY+(shotTargetY-cannonY)*t;
+            if(laserEnabled){p.setColor(Color.argb(115,255,45,25));p.setStrokeWidth(1.5f);c.drawLine(shotStartX,shotStartY,shotTargetX,shotTargetY,p);}
+            float x=shotStartX+(shotTargetX-shotStartX)*t;float y=shotStartY+(shotTargetY-shotStartY)*t;
             if(projectileSheet!=null)drawTile(c,projectileSheet,8,1,Math.min(7,(int)(t*8)),new RectF(x-10,y-10,x+10,y+10),pixel);
             else{p.setColor(Color.YELLOW);c.drawCircle(x,y,4,p);}
         }
 
         void drawMeteor(Canvas c,Meteor m){
-            if(tailImg!=null&&m.kind!=Kind.BONUS){p.setAlpha(150);c.drawBitmap(tailImg,null,new RectF(m.x-7,m.y-m.radius-27,m.x+7,m.y-m.radius+5),pixel);p.setAlpha(255);}
             if(m.kind==Kind.BONUS){drawBonusMeteor(c,m);}
             else{
                 Paint use=pixel;
@@ -472,18 +519,25 @@ public class GameV2Activity extends Activity {
             if(lane!=null)c.drawBitmap(lane,null,new RectF(0,390,800,480),pixel);else{p.setColor(Color.argb(235,0,16,35));c.drawRect(0,390,800,480,p);}
             int x=12;
             for(int i=0;i<MeteorMathV2.PRIMES.length;i++){
-                int prime=MeteorMathV2.PRIMES[i];RectF r=new RectF(x,418,x+34,456);divisorRects[i]=r;boolean have=inv.divisors.contains(prime);
-                if(molduraSheet!=null)drawTile(c,molduraSheet,4,1,have?0:2,r,pixel);
-                else{p.setColor(have?(inv.selectedDivisor==prime&&selectedMode==0?Color.rgb(45,135,190):Color.rgb(20,65,90)):Color.rgb(35,40,48));c.drawRect(r,p);}
+                int prime=MeteorMathV2.PRIMES[i];RectF r=new RectF(x,420,x+30,455);divisorRects[i]=r;boolean have=inv.divisors.contains(prime);
+                if(molduraSheet!=null){p.setAlpha(have?255:95);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}
+                else{p.setColor(have?Color.rgb(16,45,62):Color.rgb(28,31,35));c.drawRect(r,p);}
                 if(have&&inv.selectedDivisor==prime&&selectedMode==0){p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);}
-                drawText(c,String.valueOf(prime),r.centerX(),443,14,have?Color.WHITE:Color.GRAY,true);x+=40;
+                drawOutlinedText(c,String.valueOf(prime),r.centerX(),443,15,have?Color.WHITE:Color.rgb(115,120,125));x+=36;
             }
-            subMinus.set(465,418,493,454);subPlus.set(546,418,574,454);subUse.set(496,418,543,454);p.setColor(selectedMode==1?Color.rgb(65,120,150):Color.rgb(25,60,80));c.drawRect(459,405,580,462,p);
-            if(subImg!=null)c.drawBitmap(subImg,null,new RectF(463,407,483,427),pixel);drawText(c,"-",479,445,20,Color.WHITE,true);drawText(c,"+",560,445,20,Color.WHITE,true);drawText(c,String.valueOf(inv.subtractorValue),520,444,18,Color.CYAN,true);drawText(c,"CARGA "+inv.subtractorCharge,523,412,11,Color.WHITE,true);
-            bombRect.set(588,404,642,462);p.setColor(selectedMode==2?Color.rgb(150,85,35):Color.rgb(60,45,20));c.drawRect(bombRect,p);if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(598,411,630,443),pixel);drawText(c,"x"+inv.bombZero,616,458,11,Color.YELLOW,true);
-            repairRect.set(650,404,792,462);p.setColor(Color.rgb(25,70,45));c.drawRect(repairRect,p);if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(658,411,690,443),pixel);drawText(c,"$"+inv.money+"  REPARAR",738,438,13,Color.WHITE,true);
+            // Subtrator em uma caixa propria, sem invadir a fileira de municoes.
+            RectF subBox=new RectF(414,401,550,463);p.setColor(selectedMode==1?Color.rgb(50,105,135):Color.rgb(18,48,66));c.drawRect(subBox,p);
+            if(subImg!=null)c.drawBitmap(subImg,null,new RectF(420,405,440,425),pixel);drawText(c,"CARGA "+inv.subtractorCharge,492,420,11,Color.WHITE,true);
+            subMinus.set(422,430,450,458);subUse.set(454,430,510,458);subPlus.set(514,430,542,458);
+            drawText(c,"-",436,451,19,Color.WHITE,true);drawText(c,String.valueOf(inv.subtractorValue),482,451,18,Color.CYAN,true);drawText(c,"+",528,451,19,Color.WHITE,true);
+            bombRect.set(558,402,622,463);p.setColor(selectedMode==2?Color.rgb(150,85,35):Color.rgb(60,45,20));c.drawRect(bombRect,p);if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(574,409,606,441),pixel);drawText(c,"x"+inv.bombZero,590,458,11,Color.YELLOW,true);
+            repairRect.set(630,402,792,463);p.setColor(Color.rgb(25,70,45));c.drawRect(repairRect,p);if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(640,410,672,442),pixel);drawText(c,"$"+inv.money+"  REPARAR",725,438,13,Color.WHITE,true);
             drawText(c,"ONDA "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);drawText(c,"PONTOS "+score,12,43,14,Color.YELLOW,false);
             p.setColor(Color.rgb(60,20,20));c.drawRect(12,55,220,71,p);p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);drawText(c,"CIDADE "+(int)cityHealth+"%",116,68,11,Color.WHITE,true);if(inv.shieldSeconds>0)drawText(c,"ESCUDO "+(int)Math.ceil(inv.shieldSeconds),250,22,13,Color.CYAN,false);
+        }
+
+        void drawOutlinedText(Canvas c,String s,float x,float y,float size,int color){
+            drawText(c,s,x+1,y+1,size,Color.BLACK,true);drawText(c,s,x,y,size,color,true);
         }
 
         void drawQuiz(Canvas c){
@@ -528,13 +582,16 @@ public class GameV2Activity extends Activity {
         void handleMenuTouch(float x,float y){
             if(menuPage==MENU_MAIN){
                 for(int i=0;i<menuButtons.length;i++)if(menuButtons[i].contains(x,y)){
-                    if(i==0)resetGame();else if(i==1)menuPage=MENU_HOW;else if(i==2)menuPage=MENU_OPTIONS;else if(i==3)menuPage=MENU_CREDITS;else GameV2Activity.this.finish();return;
+                    if(i==0)resetGame();else if(i==1)menuPage=MENU_SCORE;else if(i==2)menuPage=MENU_OPTIONS;else GameV2Activity.this.finish();return;
                 }
-            }else if(menuPage==MENU_HOW||menuPage==MENU_CREDITS){if(x>=290&&x<=510&&y>=320&&y<=405)menuPage=MENU_MAIN;}
-            else if(menuPage==MENU_OPTIONS){
-                if(x>=245&&x<=555&&y>=135&&y<=205){audio.enabled=!audio.enabled;if(!audio.enabled)audio.stopLong();}
-                else if(x>=245&&x<=555&&y>=205&&y<=275)vibrationEnabled=!vibrationEnabled;
-                else if(x>=290&&x<=510&&y>=325&&y<=400)menuPage=MENU_MAIN;
+            }else if(menuPage==MENU_SCORE){
+                if(x>=290&&x<=510&&y>=335&&y<=410)menuPage=MENU_MAIN;
+            }else if(menuPage==MENU_OPTIONS){
+                if(x>=235&&x<=565&&y>=95&&y<=155){selectedDifficulty=(selectedDifficulty+1)%6;waves.difficulty=selectedDifficulty;}
+                else if(x>=235&&x<=565&&y>=155&&y<=215)laserEnabled=!laserEnabled;
+                else if(x>=235&&x<=565&&y>=215&&y<=273)vibrationEnabled=!vibrationEnabled;
+                else if(x>=235&&x<=565&&y>=273&&y<=333){getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE).edit().clear().apply();scoreClearedNotice=true;scoreNoticeTimer=1.5f;}
+                else if(x>=290&&x<=510&&y>=350&&y<=420)menuPage=MENU_MAIN;
             }
         }
     }
