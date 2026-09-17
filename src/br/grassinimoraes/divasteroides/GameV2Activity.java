@@ -9,6 +9,7 @@ import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Path;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
@@ -51,6 +52,9 @@ public class GameV2Activity extends Activity {
         final SoundPool pool = new SoundPool(12, AudioManager.STREAM_MUSIC, 0);
         final java.util.HashMap<String,Integer> ids = new java.util.HashMap<String,Integer>();
         MediaPlayer longPlayer;
+        MediaPlayer musicPlayer;
+        String currentMusic;
+        boolean musicPaused;
         boolean enabled = true;
         AudioBank(Context c) { ctx=c; }
         void load(String name) {
@@ -75,7 +79,39 @@ public class GameV2Activity extends Activity {
         void stopLong() {
             if(longPlayer!=null){ try{longPlayer.stop();}catch(Exception ignored){} longPlayer.release(); longPlayer=null; }
         }
-        void release(){ stopLong(); pool.release(); }
+        void playMusic(String name,float volume) {
+            if(!enabled)return;
+            if(name!=null&&name.equals(currentMusic)&&musicPlayer!=null){
+                if(!musicPlayer.isPlaying()&&!musicPaused){try{musicPlayer.start();}catch(Exception ignored){}}
+                return;
+            }
+            stopMusic();
+            try{
+                AssetFileDescriptor fd=ctx.getAssets().openFd("audio/"+name);
+                musicPlayer=new MediaPlayer();
+                musicPlayer.setDataSource(fd.getFileDescriptor(),fd.getStartOffset(),fd.getLength());
+                fd.close();
+                musicPlayer.setLooping(true);
+                musicPlayer.setVolume(volume,volume);
+                musicPlayer.prepare();
+                currentMusic=name;
+                musicPaused=false;
+                musicPlayer.start();
+            }catch(Exception ignored){stopMusic();}
+        }
+        void setMusicPaused(boolean pause){
+            musicPaused=pause;
+            if(musicPlayer==null)return;
+            try{
+                if(pause&&musicPlayer.isPlaying())musicPlayer.pause();
+                else if(!pause&&!musicPlayer.isPlaying())musicPlayer.start();
+            }catch(Exception ignored){}
+        }
+        void stopMusic(){
+            if(musicPlayer!=null){try{musicPlayer.stop();}catch(Exception ignored){}musicPlayer.release();musicPlayer=null;}
+            currentMusic=null;musicPaused=false;
+        }
+        void release(){ stopLong(); stopMusic(); pool.release(); }
     }
 
     static final class Particle {
@@ -156,6 +192,7 @@ public class GameV2Activity extends Activity {
         GameView(Context c){
             super(c); setFocusable(true); pixel.setAntiAlias(false); pixel.setFilterBitmap(false); tintPaint.setAntiAlias(false);
             audio=new AudioBank(c); loadAssets(); loadAudio();
+            audio.playMusic("musica_menu.ogg",.42f);
         }
 
         void loadAssets(){
@@ -198,10 +235,12 @@ public class GameV2Activity extends Activity {
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=8;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
-            preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;audio.playLong("sirene_80bpm_10.wav");
+            preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;
+            audio.playMusic("musica_jogo.ogg",.34f);
+            audio.playLong("sirene_80bpm_10.wav");
         }
 
-        void beginNextWave(){running=false;preWave=true;paused=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;audio.playLong("sirene_80bpm_10.wav");}
+        void beginNextWave(){running=false;preWave=true;paused=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;audio.setMusicPaused(false);audio.playLong("sirene_80bpm_10.wav");}
 
         void update(float dt){
             if(paused)return;
@@ -325,7 +364,46 @@ public class GameV2Activity extends Activity {
         void drawSmoke(Canvas c,float x,float y){if(smokeImg!=null){p.setAlpha(cityHealth<=30?155:115);c.drawBitmap(smokeImg,null,new RectF(x-9,y-34,x+13,y-12),pixel);p.setAlpha(255);}}
 
         void drawShieldDome(Canvas c){
-            if(inv.shieldSeconds<=0)return;boolean ending=inv.shieldSeconds<=2.5f;if(ending&&((int)(inv.shieldSeconds*7f)&1)==0)return;float reveal=Math.min(1f,shieldVisualAge/.70f);reveal=1f-(1f-reveal)*(1f-reveal);float rx=370f*reveal,ry=205f*reveal,base=382f;RectF dome=new RectF(400-rx,base-2*ry,400+rx,base);int pulse=(int)(12+8*Math.abs(Math.sin(SystemClock.uptimeMillis()/180.0)));p.setStyle(Paint.Style.FILL);p.setColor(Color.argb(22+pulse,245,250,255));c.drawArc(dome,180,180,true,p);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(3f);p.setColor(Color.argb(165,210,245,255));c.drawArc(dome,180,180,false,p);p.setStrokeWidth(1f);p.setColor(Color.argb(95,255,255,255));RectF inner=new RectF(400-rx*.96f,base-2*ry*.96f,400+rx*.96f,base);c.drawArc(inner,180,180,false,p);p.setStyle(Paint.Style.FILL);
+            if(inv.shieldSeconds<=0)return;
+            boolean ending=inv.shieldSeconds<=2.5f;
+            if(ending&&((int)(inv.shieldSeconds*7f)&1)==0)return;
+
+            float reveal=Math.min(1f,shieldVisualAge/.70f);
+            reveal=1f-(1f-reveal)*(1f-reveal);
+            float left=26f,right=774f,base=354f,apex=282f;
+            float half=(right-left)*.5f*reveal;
+
+            Path edge=new Path();
+            edge.moveTo(left,base);
+            edge.cubicTo(155f,318f,285f,286f,400f,apex);
+            edge.cubicTo(515f,286f,645f,318f,right,base);
+
+            Path fill=new Path();
+            fill.moveTo(left,base);
+            fill.cubicTo(155f,318f,285f,286f,400f,apex);
+            fill.cubicTo(515f,286f,645f,318f,right,base);
+            fill.lineTo(right,390f);
+            fill.lineTo(left,390f);
+            fill.close();
+
+            c.save();
+            c.clipRect(400f-half,260f,400f+half,391f);
+            int pulse=(int)(6+5*Math.abs(Math.sin(SystemClock.uptimeMillis()/210.0)));
+
+            p.setStyle(Paint.Style.FILL);
+            p.setColor(Color.argb(18+pulse,245,250,255));
+            c.drawPath(fill,p);
+
+            p.setStyle(Paint.Style.STROKE);
+            p.setStrokeWidth(3.2f);
+            p.setColor(Color.argb(180,235,248,255));
+            c.drawPath(edge,p);
+            p.setStrokeWidth(1.1f);
+            p.setColor(Color.argb(80,255,255,255));
+            c.drawPath(edge,p);
+
+            p.setStyle(Paint.Style.FILL);
+            c.restore();
         }
 
         void updateCityFireParticles(float dt){if(cityHealth>30)return;fireParticleTimer-=dt;if(fireParticleTimer>0)return;fireParticleTimer=.045f+.035f*rnd.nextFloat();int count=2+(cityHealth<15?2:0);for(int i=0;i<count;i++){float x=55+rnd.nextFloat()*690f;float y=350+rnd.nextFloat()*25f;int col=rnd.nextBoolean()?Color.rgb(255,80,15):Color.rgb(255,190,30);particles.add(new Particle(x,y,-12+rnd.nextFloat()*24,-55-rnd.nextFloat()*55,.42f+rnd.nextFloat()*.35f,col,2+rnd.nextFloat()*3));}}
@@ -345,12 +423,65 @@ public class GameV2Activity extends Activity {
         void drawPlane(Canvas c,Plane pl){Bitmap b=pl.military?planeMilitary:planeCommercial;if(b!=null)c.drawBitmap(b,null,pl.bounds(),pixel);else{p.setColor(pl.military?Color.GREEN:Color.WHITE);c.drawRect(pl.bounds(),p);}}
 
         void drawHud(Canvas c){
-            if(lane!=null)c.drawBitmap(lane,null,new RectF(0,390,800,480),pixel);else{p.setColor(Color.argb(235,0,16,35));c.drawRect(0,390,800,480,p);}int x=12;
-            for(int i=0;i<MeteorMathV2.PRIMES.length;i++){int prime=MeteorMathV2.PRIMES[i];RectF r=new RectF(x,420,x+30,455);divisorRects[i]=r;boolean have=inv.divisors.contains(prime);if(molduraSheet!=null){p.setAlpha(have?255:95);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}else{p.setColor(have?Color.rgb(16,45,62):Color.rgb(28,31,35));c.drawRect(r,p);}if(have&&inv.selectedDivisor==prime&&selectedMode==0){p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);}drawOutlinedText(c,String.valueOf(prime),r.centerX(),443,15,have?Color.WHITE:Color.rgb(115,120,125));x+=36;}
-            RectF subBox=new RectF(486,401,620,463);p.setColor(selectedMode==1?Color.rgb(50,105,135):Color.rgb(18,48,66));c.drawRect(subBox,p);if(subImg!=null)c.drawBitmap(subImg,null,new RectF(492,405,512,425),pixel);drawText(c,"CARGA "+inv.subtractorCharge,557,420,11,Color.WHITE,true);subMinus.set(492,430,520,458);subUse.set(524,430,578,458);subPlus.set(582,430,610,458);drawText(c,"-",506,451,19,Color.WHITE,true);drawText(c,String.valueOf(inv.subtractorValue),551,451,18,Color.CYAN,true);drawText(c,"+",596,451,19,Color.WHITE,true);
-            bombRect.set(628,402,688,463);p.setColor(selectedMode==2?Color.rgb(150,85,35):Color.rgb(60,45,20));c.drawRect(bombRect,p);if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(642,409,674,441),pixel);drawText(c,"x"+inv.bombZero,658,458,11,Color.YELLOW,true);repairRect.set(696,402,792,463);p.setColor(Color.rgb(25,70,45));c.drawRect(repairRect,p);if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(702,410,728,436),pixel);drawText(c,"$"+inv.money,753,425,12,Color.YELLOW,true);drawText(c,"REPARAR",753,447,11,Color.WHITE,true);
-            drawText(c,"ONDA "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);drawText(c,"PONTOS "+score,12,43,14,Color.YELLOW,false);p.setColor(Color.rgb(60,20,20));c.drawRect(12,55,220,71,p);p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);drawText(c,"CIDADE "+(int)cityHealth+"%",116,68,11,Color.WHITE,true);if(inv.shieldSeconds>0)drawText(c,"ESCUDO "+(int)Math.ceil(inv.shieldSeconds),250,22,13,Color.CYAN,false);
-            if(running&&!preWave&&!gameOver){pauseRect.set(744,10,790,48);p.setColor(Color.argb(205,0,28,48));c.drawRoundRect(pauseRect,7,7,p);p.setColor(Color.WHITE);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRoundRect(pauseRect,7,7,p);p.setStyle(Paint.Style.FILL);drawText(c,paused?">":"II",pauseRect.centerX(),39,20,Color.WHITE,true);}else pauseRect.setEmpty();
+            // HUD redesenhado por blocos independentes para nenhum controle se sobrepor.
+            p.setColor(Color.rgb(3,18,34));c.drawRect(0,390,800,480,p);
+            p.setColor(Color.rgb(28,112,158));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(3,393,797,477,p);p.setStyle(Paint.Style.FILL);
+
+            RectF divPanel=new RectF(8,397,414,472);
+            RectF subPanel=new RectF(420,397,565,472);
+            RectF bombPanel=new RectF(571,397,648,472);
+            RectF repairPanel=new RectF(654,397,792,472);
+            RectF[] panels={divPanel,subPanel,bombPanel,repairPanel};
+            for(RectF panel:panels){p.setColor(Color.rgb(7,32,50));c.drawRect(panel,p);p.setColor(Color.rgb(25,92,127));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.5f);c.drawRect(panel,p);p.setStyle(Paint.Style.FILL);}
+
+            drawText(c,"DIVISORES",16,412,10,Color.LTGRAY,false);
+            int x=14;
+            for(int i=0;i<MeteorMathV2.PRIMES.length;i++){
+                int prime=MeteorMathV2.PRIMES[i];
+                RectF r=new RectF(x,421,x+30,459);divisorRects[i]=r;
+                boolean have=inv.divisors.contains(prime);
+                if(molduraSheet!=null){p.setAlpha(have?255:80);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}
+                else{p.setColor(have?Color.rgb(16,45,62):Color.rgb(28,31,35));c.drawRect(r,p);}
+                if(have&&inv.selectedDivisor==prime&&selectedMode==0){p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);}
+                drawOutlinedText(c,String.valueOf(prime),r.centerX(),446,14,have?Color.WHITE:Color.rgb(105,110,115));
+                x+=36;
+            }
+
+            if(subImg!=null)c.drawBitmap(subImg,null,new RectF(427,402,447,422),pixel);
+            drawText(c,"SUBTRATOR",493,410,10,Color.LTGRAY,true);
+            drawText(c,"CARGA "+inv.subtractorCharge,522,423,10,Color.WHITE,true);
+            subMinus.set(429,432,455,461);subUse.set(460,430,524,463);subPlus.set(530,432,556,461);
+            p.setColor(selectedMode==1?Color.rgb(38,92,120):Color.rgb(14,51,69));c.drawRoundRect(subUse,4,4,p);
+            drawText(c,"-",442,454,18,Color.WHITE,true);
+            drawText(c,String.valueOf(inv.subtractorValue),492,454,18,Color.CYAN,true);
+            drawText(c,"+",543,454,18,Color.WHITE,true);
+
+            bombRect.set(576,404,643,466);
+            p.setColor(selectedMode==2?Color.rgb(112,70,24):Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
+            drawText(c,"BOMBA 0",609,414,9,Color.LTGRAY,true);
+            if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(593,419,625,451),pixel);
+            drawText(c,"x"+inv.bombZero,609,464,10,Color.YELLOW,true);
+
+            repairRect.set(660,404,786,466);
+            p.setColor(Color.rgb(23,72,44));c.drawRoundRect(repairRect,4,4,p);
+            if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(668,414,696,442),pixel);
+            drawText(c,"$"+inv.money,738,425,12,Color.YELLOW,true);
+            drawText(c,"REPARAR",738,448,11,Color.WHITE,true);
+
+            drawText(c,"ONDA "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);
+            drawText(c,"PONTOS "+score,12,43,14,Color.YELLOW,false);
+            p.setColor(Color.rgb(60,20,20));c.drawRect(12,55,220,71,p);
+            p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);
+            drawText(c,"CIDADE "+(int)cityHealth+"%",116,68,11,Color.WHITE,true);
+            if(inv.shieldSeconds>0)drawText(c,"ESCUDO "+(int)Math.ceil(inv.shieldSeconds),250,22,13,Color.CYAN,false);
+
+            // Pause no canto direito da faixa marrom, fora da área útil do céu e fora do HUD azul.
+            if(running&&!preWave&&!gameOver){
+                pauseRect.set(746,351,792,386);
+                p.setColor(Color.argb(220,72,58,28));c.drawRoundRect(pauseRect,5,5,p);
+                p.setColor(Color.WHITE);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.7f);c.drawRoundRect(pauseRect,5,5,p);p.setStyle(Paint.Style.FILL);
+                drawText(c,paused?">":"II",pauseRect.centerX(),376,18,Color.WHITE,true);
+            }else pauseRect.setEmpty();
         }
 
         void drawOutlinedText(Canvas c,String s,float x,float y,float size,int color){drawText(c,s,x+1,y+1,size,Color.BLACK,true);drawText(c,s,x,y,size,color,true);}
@@ -362,7 +493,7 @@ public class GameV2Activity extends Activity {
         void drawText(Canvas c,String s,float x,float y,float size,int color,boolean center){p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(size);p.setColor(color);p.setTextAlign(center?Paint.Align.CENTER:Paint.Align.LEFT);c.drawText(s,x,y,p);}
 
         @Override public boolean onTouchEvent(MotionEvent e){
-            if(e.getAction()!=MotionEvent.ACTION_UP)return true;float x=lx(e.getX()),y=ly(e.getY());audio.play("ui_click.wav");if(!running&&!preWave&&!gameOver){handleMenuTouch(x,y);return true;}if(gameOver){if(x>=285&&x<=515&&y>=265&&y<=350)resetGame();return true;}if(running&&!preWave&&pauseRect.contains(x,y)){paused=!paused;return true;}if(paused)return true;if(preWave)return true;if(quizOpen){if(y>=225&&y<=315){for(int i=0;i<3;i++){float l=225+i*125;if(x>=l&&x<=l+100){answerQuiz(quizMeteor.quiz.options[i]);return true;}}}return true;}
+            if(e.getAction()!=MotionEvent.ACTION_UP)return true;float x=lx(e.getX()),y=ly(e.getY());audio.play("ui_click.wav");if(!running&&!preWave&&!gameOver){handleMenuTouch(x,y);return true;}if(gameOver){if(x>=285&&x<=515&&y>=265&&y<=350)resetGame();return true;}if(running&&!preWave&&pauseRect.contains(x,y)){paused=!paused;audio.setMusicPaused(paused);return true;}if(paused)return true;if(preWave)return true;if(quizOpen){if(y>=225&&y<=315){for(int i=0;i<3;i++){float l=225+i*125;if(x>=l&&x<=l+100){answerQuiz(quizMeteor.quiz.options[i]);return true;}}}return true;}
             for(int i=0;i<divisorRects.length;i++){RectF r=divisorRects[i];if(r!=null&&r.contains(x,y)&&inv.divisors.contains(MeteorMathV2.PRIMES[i])){selectedMode=0;inv.selectedDivisor=MeteorMathV2.PRIMES[i];return true;}}if(subMinus.contains(x,y)){selectedMode=1;if(inv.subtractorValue>1)inv.subtractorValue--;return true;}if(subPlus.contains(x,y)){selectedMode=1;if(inv.subtractorValue<Math.max(1,inv.subtractorCharge)&&inv.subtractorValue<waves.maxMeteorValue())inv.subtractorValue++;return true;}if(subUse.contains(x,y)){selectedMode=1;return true;}if(bombRect.contains(x,y)){selectedMode=2;return true;}if(repairRect.contains(x,y)&&inv.repair(cityHealth)){cityHealth=Math.min(100,cityHealth+20);audio.play("reconstrucao_cidade.wav");return true;}Meteor hit=null;for(int i=meteors.size()-1;i>=0;i--){Meteor m=meteors.get(i);if(!m.dead&&m.bounds().contains(x,y)){hit=m;break;}}if(hit!=null)hitMeteor(hit);return true;
         }
 
