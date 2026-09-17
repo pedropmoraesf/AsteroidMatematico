@@ -6,9 +6,6 @@ on:
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -26,20 +23,4 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - name: Apply gameplay visual fixes
-        run: python3 tools/apply_gamev2_payload.py
-
       - run: gradle assembleDebug --stacktrace
-
-      - name: Commit generated source
-        if: github.event_name == 'pull_request'
-        run: |
-          if ! git diff --quiet -- src/br/grassinimoraes/divasteroides/GameV2Activity.java; then
-            git fetch origin "${{ github.head_ref }}"
-            git checkout -B "${{ github.head_ref }}" "origin/${{ github.head_ref }}"
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add src/br/grassinimoraes/divasteroides/GameV2Activity.java
-            git commit -m "Ajusta canhao, HUD e particulas"
-            git push origin "${{ github.head_ref }}"
-          fi
