@@ -18,7 +18,7 @@ final class WaveManager {
     }
 
     float meteorSpeed() {
-        return 26f + wave*2.15f + difficulty*3.5f;
+        return 24f + wave*1.9f + difficulty*3.2f;
     }
 
     float spawnSeconds() {
