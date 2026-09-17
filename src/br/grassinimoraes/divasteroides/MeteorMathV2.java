@@ -32,28 +32,30 @@ final class MeteorMathV2 {
     }
 
     static int generateNormalValue(Random r, int maxValue, int highestUnlockedPrime, boolean allowLargePrime) {
-        maxValue = Math.max(6, maxValue);
+        maxValue = Math.max(6, Math.min(200,maxValue));
         if (allowLargePrime && maxValue >= 37 && r.nextFloat() < 0.13f) {
             List<Integer> primes = new ArrayList<Integer>();
             for (int n=37;n<=maxValue;n++) if (isPrime(n)) primes.add(n);
             if (!primes.isEmpty()) return primes.get(r.nextInt(primes.size()));
         }
+
         int[] friendly = {4,6,8,9,10,12,14,15,16,18,20,21,24,25,27,28,30,32,35,36,40,42,45,48,49,50,54,56,60,63,64,66,70,72,75,77,80,81,84,88,90,96,98,99,100,108,110,112,120,126,128,132,135,140,144,150,154,156,160,168,175,176,180,189,192,196,198,200};
         List<Integer> candidates = new ArrayList<Integer>();
         for (int n : friendly) {
             if (n > maxValue) break;
-            if (hasFactorAtMost(n, highestUnlockedPrime)) candidates.add(n);
+            if (fullyFactorableByUnlocked(n, highestUnlockedPrime)) candidates.add(n);
         }
         if (candidates.isEmpty()) return 6;
         return candidates.get(r.nextInt(candidates.size()));
     }
 
-    private static boolean hasFactorAtMost(int n, int highest) {
+    private static boolean fullyFactorableByUnlocked(int n, int highest) {
+        int remaining=n;
         for (int p : PRIMES) {
             if (p > highest) break;
-            if (n % p == 0) return true;
+            while (remaining % p == 0) remaining/=p;
         }
-        return false;
+        return remaining==1;
     }
 
     static Quiz generateQuiz(Random r, boolean multiplication, int wave) {
