@@ -1,0 +1,38 @@
+PACOTE DE ÁUDIOS — ASTEROIDE MATEMÁTICO
+
+Todos os sons deste pacote foram gerados proceduralmente para o projeto.
+Não foram usados samples de terceiros, portanto não há dependências externas de licença.
+
+- sirene_80bpm_10.wav: Alerta pré-fase: 10 'uon' a 80 BPM.
+- disparo_canhao.wav: Disparo padrão/divisor.
+- divisao_correta.wav: Acerto matemático de divisão.
+- divisao_errada.wav: Divisor incorreto.
+- explosao_meteoro.wav: Explosão comum de meteoro.
+- explosao_grande.wav: Explosão pesada.
+- bomba_zero.wav: Arma especial multiplicação por zero/bomba 0.
+- impacto_cidade.wav: Meteoro atingindo a cidade.
+- bonus_municao.wav: Coleta de nova munição.
+- bonus_dinheiro.wav: Coleta de dinheiro.
+- bonus_saude.wav: Coleta de recuperação de saúde.
+- bonus_escudo.wav: Coleta/ativação de escudo.
+- bonus_subtrator.wav: Coleta do subtrator.
+- municao_desbloqueada.wav: Nova munição prima desbloqueada.
+- subtrator_uso.wav: Uso do saldo do subtrator.
+- quiz_abre.wav: Abertura do quiz de adição/multiplicação.
+- quiz_acerto.wav: Resposta correta.
+- quiz_erro.wav: Resposta errada.
+- alvo_trava.wav: Alvo vermelho travando no meteoro.
+- aviao_militar_passagem.wav: Flyby do avião militar.
+- aviao_militar_bomba.wav: Queda/impacto da bomba do avião militar.
+- aviao_comercial_passagem.wav: Flyby ocasional do avião comercial.
+- aviao_comercial_atingido.wav: Avião comercial atingido.
+- meteoro_entrada.wav: Assobio/entrada de meteoro.
+- chuva_meteoros_inicio.wav: Sting quando começa a chuva de meteoros.
+- fogo_cidade_loop.wav: Loop discreto de incêndio.
+- escudo_loop.wav: Loop discreto de campo de força.
+- ui_click.wav: Clique de interface.
+- fase_concluida.wav: Fim de fase/onda.
+- game_over.wav: Fim de jogo.
+- reconstrucao_cidade.wav: Reparo/reconstrução da cidade.
+- meteoro_adicao.wav: Cue do meteoro amarelo de adição.
+- meteoro_multiplicacao.wav: Cue do meteoro verde de multiplicação.
