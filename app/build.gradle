@@ -10,8 +10,8 @@ android {
         applicationId 'br.grassinimoraes.divasteroides'
         minSdk 8
         targetSdk 28
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '2.0'
     }
 
     sourceSets {
@@ -20,6 +20,10 @@ android {
             java.srcDirs = ['../src']
             assets.srcDirs = ['../assets']
         }
+    }
+
+    aaptOptions {
+        noCompress 'wav'
     }
 
     compileOptions {
