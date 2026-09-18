@@ -31,4 +31,5 @@ android {
 dependencies {
     implementation project(':andengine')
     implementation project(':andenginephysicsbox2d')
+    testImplementation 'junit:junit:4.13.2'
 }
