@@ -1097,31 +1097,75 @@ public class GameV2Activity extends Activity {
         void drawMenuButton(Canvas c,RectF r,String label,boolean highlight){p.setColor(highlight?Color.argb(230,0,65,105):Color.argb(225,0,25,50));c.drawRect(r,p);p.setColor(highlight?Color.CYAN:Color.rgb(40,135,190));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(highlight?3:2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);drawText(c,label,r.centerX(),r.centerY()+7,18,Color.WHITE,true);}
         void drawText(Canvas c,String s,float x,float y,float size,int color,boolean center){p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(size);p.setColor(color);p.setTextAlign(center?Paint.Align.CENTER:Paint.Align.LEFT);c.drawText(s,x,y,p);}
 
+        boolean canAimAt(float x,float y){
+            return running&&!preWave&&!paused&&!quizOpen&&!gameOver&&!waveClear&&!bombSequence&&!intermission&&!victory
+                    &&y<390&&!pauseRect.contains(x,y);
+        }
+
         @Override public boolean onTouchEvent(MotionEvent e){
-            if(e.getAction()!=MotionEvent.ACTION_UP)return true;
-            float x=lx(e.getX()),y=ly(e.getY());audio.play("ui_click.wav");
+            float x=lx(e.getX()),y=ly(e.getY());
+            int action=e.getActionMasked();
+
+            if(action==MotionEvent.ACTION_DOWN){
+                if(canAimAt(x,y)){
+                    aiming=true;aimDownTime=SystemClock.uptimeMillis();aimCharge=0f;chargeParticleTimer=0f;
+                    aimTargetIndex=currentAimIndex();
+                    chargedProjectileValue=selectedMode==1?Math.max(1,inv.subtractorValue):inv.selectedDivisor;
+                    pointCannonAt(x,y);
+                    audio.play("alvo_trava.wav");
+                }
+                return true;
+            }
+
+            if(action==MotionEvent.ACTION_MOVE){
+                if(aiming)pointCannonAt(x,y);
+                return true;
+            }
+
+            if(action==MotionEvent.ACTION_CANCEL){
+                aiming=false;aimCharge=0f;aimTargetTimer=0f;
+                if(shotTimer<=0)cannonAngle=-45f;
+                return true;
+            }
+
+            if(action!=MotionEvent.ACTION_UP)return true;
+
+            if(aiming){
+                pointCannonAt(x,y);
+                releaseAimedShot();
+                return true;
+            }
+
+            audio.play("ui_click.wav");
             if(victory){if(victoryMenuRect.contains(x,y))returnToMainMenu();else if(victoryExitRect.contains(x,y))GameV2Activity.this.finish();return true;}
             if(intermission){handleIntermissionTouch(x,y);return true;}
             if(!running&&!preWave&&!gameOver&&!waveClear){handleMenuTouch(x,y);return true;}
             if(gameOver){if(x>=285&&x<=515&&y>=265&&y<=350)resetGame();return true;}
             if(waveClear)return true;
-            if(running&&!preWave&&pauseRect.contains(x,y)){paused=!paused;audio.setMusicPaused(paused);return true;}
+            if(running&&!preWave&&pauseRect.contains(x,y)){paused=!paused;audio.setMusicPaused(paused);aiming=false;return true;}
             if(paused){handlePauseTouch(x,y);return true;}
             if(bombSequence)return true;
-            if(preWave)return true;if(quizOpen){if(y>=225&&y<=315){for(int i=0;i<3;i++){float l=225+i*125;if(x>=l&&x<=l+100){answerQuiz(quizMeteor.quiz.options[i]);return true;}}}return true;}
-            for(int i=0;i<divisorRects.length;i++){RectF r=divisorRects[i];if(r!=null&&r.contains(x,y)&&inv.divisors.contains(MeteorMathV2.PRIMES[i])){selectedMode=0;inv.selectedDivisor=MeteorMathV2.PRIMES[i];return true;}}
+            if(preWave)return true;
+            if(quizOpen){
+                if(y>=225&&y<=315){
+                    for(int i=0;i<3;i++){
+                        float l=225+i*125;
+                        if(x>=l&&x<=l+100){answerQuiz(quizMeteor.quiz.options[i]);return true;}
+                    }
+                }
+                return true;
+            }
+            for(int i=0;i<divisorRects.length;i++){
+                RectF r=divisorRects[i];
+                if(r!=null&&r.contains(x,y)&&inv.divisors.contains(MeteorMathV2.PRIMES[i])){
+                    selectedMode=0;inv.selectedDivisor=MeteorMathV2.PRIMES[i];return true;
+                }
+            }
             if(subMinus.contains(x,y)){selectedMode=1;if(inv.subtractorValue>1)inv.subtractorValue--;return true;}
             if(subPlus.contains(x,y)){selectedMode=1;if(inv.subtractorValue<Math.max(1,inv.subtractorCharge)&&inv.subtractorValue<waves.maxMeteorValue())inv.subtractorValue++;return true;}
             if(subUse.contains(x,y)){selectedMode=1;return true;}
             if(bombRect.contains(x,y)){startBombSequence();return true;}
             if(repairRect.contains(x,y)&&inv.repair(cityHealth)){cityHealth=Math.min(100,cityHealth+20);audio.play("reconstrucao_cidade.wav");return true;}
-            Meteor hit=null;
-            for(int i=meteors.size()-1;i>=0;i--){Meteor m=meteors.get(i);if(!m.dead&&m.bounds().contains(x,y)){hit=m;break;}}
-            if(hit!=null){hitMeteor(hit);return true;}
-            if(y<390){
-                int color=selectedMode==1?Color.rgb(100,235,255):projectileColorForDivisor(inv.selectedDivisor);
-                aimAndFireAt(x,y,color);
-            }
             return true;
         }
 
