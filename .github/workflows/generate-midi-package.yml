@@ -1,0 +1,30 @@
+name: Gerar pacote MIDI 02-25
+on:
+  push:
+    branches:
+      - gerar-pacote-mid-02-25-vitoria
+  workflow_dispatch:
+jobs:
+  gerar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Gerar MIDIs e ZIP
+        run: python3 tools/generate_music_package.py
+      - name: Validar conteudo
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          p='dist/asteroide_matematico_ondas_02_25_mid.zip'
+          with zipfile.ZipFile(p) as z:
+              names=z.namelist()
+          assert all(f'mid/onda_{i:02d}.mid' in names for i in range(2,26))
+          assert 'mid/vitoria_final.mid' in names
+          assert 'converter_todos_para_ogg.bat' in names
+          print('ZIP validado:', len(names), 'arquivos')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asteroide_matematico_ondas_02_25_mid
+          path: dist/asteroide_matematico_ondas_02_25_mid.zip
+          if-no-files-found: error
