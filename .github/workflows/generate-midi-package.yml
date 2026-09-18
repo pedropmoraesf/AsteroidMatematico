@@ -4,14 +4,20 @@ on:
     branches:
       - gerar-pacote-mid-02-25-vitoria
   workflow_dispatch:
+
+permissions:
+  contents: write
+
 jobs:
   gerar:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Gerar MIDIs e ZIP
         run: python3 tools/generate_music_package.py
-      - name: Validar conteudo
+
+      - name: Validar ZIP
         run: |
           python3 - <<'PY'
           import zipfile
@@ -23,6 +29,19 @@ jobs:
           assert 'converter_todos_para_ogg.bat' in names
           print('ZIP validado:', len(names), 'arquivos')
           PY
+
+      - name: Publicar ZIP na Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="musicas-midi-02-25-v1"
+          ZIP="dist/asteroide_matematico_ondas_02_25_mid.zip"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$ZIP" --clobber
+          else
+            gh release create "$TAG" "$ZIP"               --target "${GITHUB_SHA}"               --title "Músicas MIDI - ondas 02 a 25 + vitória"               --notes "24 MIDIs para as ondas 02 a 25, vitoria_final.mid e BAT para conversão em lote com FluidSynth + Timbres Of Heaven + FFmpeg."
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: asteroide_matematico_ondas_02_25_mid
