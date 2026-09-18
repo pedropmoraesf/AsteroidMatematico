@@ -147,8 +147,8 @@ public class GameV2Activity extends Activity {
     }
 
     static final class Plane {
-        float x,y,speed; boolean military,active=true; Meteor target; float strikeTimer;
-        RectF bounds(){ return new RectF(x-48,y-16,x+48,y+16); }
+        float x,y,baseY,speed,bobPhase,trailTimer; boolean military,active=true; Meteor target; float strikeTimer;
+        RectF bounds(){ return new RectF(x-(military?50:56),y-(military?17:19),x+(military?50:56),y+(military?17:19)); }
     }
 
     final class GameView extends View implements Runnable {
@@ -171,7 +171,7 @@ public class GameV2Activity extends Activity {
         final RectF victoryMenuRect=new RectF(),victoryExitRect=new RectF();
         final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
-        Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg;
+        Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet;
         Bitmap cityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
         Typeface gameFont;
 
@@ -220,6 +220,12 @@ public class GameV2Activity extends Activity {
         Meteor pendingBonusTarget;
         float pendingBonusTimer=0f;
         int lastDivisorAcquired=0;
+        boolean aiming=false;
+        float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
+        long aimDownTime=0L;
+        int aimTargetIndex=0,shotProjectileIndex=0,chargedProjectileValue=2;
+        int manualPage=0;
+        float dirtParticleTimer=0f;
 
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
@@ -237,7 +243,7 @@ public class GameV2Activity extends Activity {
             lane=assetBitmap("graficos/lane_armas.png"); moneyImg=assetBitmap("graficos/dinheiro_bonus.png");
             subImg=assetBitmap("graficos/subtrator.png"); planeCommercial=assetBitmap("graficos/aviao_comercial.png");
             planeMilitary=assetBitmap("graficos/aviao_militar.png"); bombImg=assetBitmap("graficos/bomba0.png");
-            targetImg=assetBitmap("graficos/alvo_quiz.png");
+            targetImg=assetBitmap("graficos/alvo_quiz.png"); aimTargetSheet=assetBitmap("graficos/alvo1.png");
             cityImg=assetBitmap("graficos/cidade_grande.png"); turretSheet=assetBitmap("graficos/torre.png");
             cannonSheet=assetBitmap("graficos/canhao1.png"); meteorSheet=assetBitmap("graficos/meteoro e itens.png");
             projectileSheet=assetBitmap("graficos/projetil.png"); smokeImg=assetBitmap("graficos/fumaca1.png");
@@ -272,6 +278,7 @@ public class GameV2Activity extends Activity {
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
@@ -288,12 +295,13 @@ public class GameV2Activity extends Activity {
 
         void beginNextWave(){
             running=false;preWave=true;paused=false;waveClear=false;intermission=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;cannonAngle=-45f;
+            aiming=false;aimTargetTimer=0;aimCharge=0;dirtParticleTimer=0;
             preparePhase();
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
 
         String phaseCityName(){
-            String[] names={"","CIDADE INICIAL","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","BELEM","GOIANIA","CAMPINAS","VITORIA","FLORIANOPOLIS","NATAL","JOAO PESSOA","MACEIO","ARACAJU","SAO LUIS","CUIABA","CAMPO GRANDE","CAMPOS DOS GOYTACAZES","NITEROI","BRASILIA"};
+            String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","BELEM","GOIANIA","CAMPINAS","VITORIA","FLORIANOPOLIS","NATAL","JOAO PESSOA","MACEIO","ARACAJU","SAO LUIS","CUIABA","CAMPO GRANDE","CAMPOS DOS GOYTACAZES","NITEROI","BRASILIA"};
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
@@ -304,8 +312,12 @@ public class GameV2Activity extends Activity {
 
         int scheduledDivisorForPhase(){
             switch(waves.wave){
-                case 2:return 5; case 4:return 7; case 6:return 11; case 8:return 13; case 10:return 17;
-                case 12:return 19; case 14:return 23; case 16:return 29; case 18:return 31; default:return 0;
+                case 2:return 5;
+                case 5:return 7;
+                case 8:return 11;
+                case 11:return 13;
+                case 14:return 17;
+                default:return 0;
             }
         }
 
@@ -489,6 +501,7 @@ public class GameV2Activity extends Activity {
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
             waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
@@ -497,7 +510,7 @@ public class GameV2Activity extends Activity {
             score=Math.max(0,sp.getInt("score",0));destroyedTotal=Math.max(0,sp.getInt("destroyedTotal",0));
             inv.divisors.clear();
             String raw=sp.getString("divisors","2,3");
-            if(raw!=null)for(String part:raw.split(",")){try{int d=Integer.parseInt(part);if(d>=2&&d<=31)inv.divisors.add(d);}catch(Exception ignored){}}
+            if(raw!=null)for(String part:raw.split(",")){try{int d=Integer.parseInt(part);if(d>=2&&d<=17&&MeteorMathV2.isPrime(d))inv.divisors.add(d);}catch(Exception ignored){}}
             if(inv.divisors.isEmpty()){inv.divisors.add(2);inv.divisors.add(3);}
             inv.selectedDivisor=sp.getInt("selectedDivisor",2);
             if(!inv.divisors.contains(inv.selectedDivisor))inv.selectedDivisor=2;
