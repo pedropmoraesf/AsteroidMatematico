@@ -1,0 +1,39 @@
+name: Generate 24 wave MIDIs
+
+on:
+  push:
+    branches: [ musicas-24-ondas-mid ]
+    paths:
+      - 'tools/generate_24_wave_midis.py'
+      - '.github/workflows/generate-24-wave-midis.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: musicas-24-ondas-mid
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generate MIDI files and ZIP
+        run: python tools/generate_24_wave_midis.py
+
+      - name: Commit generated files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated_music
+          if git diff --cached --quiet; then
+            echo "No generated changes."
+          else
+            git commit -m "Gera 24 MIDIs originais para as ondas"
+            git push origin HEAD:musicas-24-ondas-mid
+          fi
