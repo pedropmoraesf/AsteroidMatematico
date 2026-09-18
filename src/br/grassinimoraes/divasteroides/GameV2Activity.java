@@ -844,10 +844,35 @@ public class GameV2Activity extends Activity {
             military.y+=(desired-military.y)*Math.min(1f,dt*3.5f);
             military.y+=(float)Math.sin(military.bobPhase+military.x*.04f)*.7f;
             emitPlaneTrail(military,dt);
-            if(military.strikeTimer<=0&&military.target!=null&&!military.target.dead){
-                audio.play("aviao_militar_bomba.wav");explode(military.target,true,true);military.target=null;
+
+            if(!military.bombActive&&military.strikeTimer<=.56f&&military.target!=null&&!military.target.dead){
+                military.bombActive=true;
+                military.bombX=military.x+8f;
+                military.bombY=military.y+13f;
+                military.bombVY=45f;
+                military.bombAngle=0f;
             }
-            if(military.x>890)military=null;
+
+            if(military.bombActive){
+                Meteor t=military.target;
+                military.bombVY+=190f*dt;
+                military.bombY+=military.bombVY*dt;
+                military.bombAngle+=210f*dt;
+                if(t!=null&&!t.dead){
+                    military.bombX+=(t.x-military.bombX)*Math.min(1f,dt*2.2f);
+                    if(military.bombY>=t.y-8f){
+                        military.bombActive=false;
+                        audio.play("aviao_militar_bomba.wav");
+                        explode(t,true,true);
+                        military.target=null;
+                    }
+                }else{
+                    military.bombActive=false;
+                    military.target=null;
+                }
+            }
+
+            if(military.x>890&&!military.bombActive)military=null;
         }
 
         void updateMeteors(float dt){
@@ -958,6 +983,7 @@ public class GameV2Activity extends Activity {
             military=new Plane();military.military=true;military.x=-75;
             military.baseY=Math.max(52,target.y-72);military.y=military.baseY;
             military.speed=190;military.target=target;military.strikeTimer=1.12f;military.bobPhase=rnd.nextFloat()*6.28f;
+            military.bombActive=false;military.bombX=military.x;military.bombY=military.y;
             audio.play("aviao_militar_passagem.wav");quizMeteor=null;
         }
         void burst(float x,float y,int color,int n){for(int i=0;i<n;i++){double a=rnd.nextDouble()*Math.PI*2;float s=25+rnd.nextFloat()*70;particles.add(new Particle(x,y,(float)Math.cos(a)*s,(float)Math.sin(a)*s,.35f+rnd.nextFloat()*.45f,color,2+rnd.nextFloat()*3));}}
@@ -1230,6 +1256,17 @@ public class GameV2Activity extends Activity {
             if(pl.military&&pl.target!=null&&!pl.target.dead){
                 p.setColor(Color.argb(95,255,70,50));p.setStrokeWidth(1.2f);
                 c.drawLine(pl.x,pl.y+10,pl.target.x,pl.target.y,p);
+            }
+            if(pl.military&&pl.bombActive){
+                c.save();
+                c.rotate(pl.bombAngle,pl.bombX,pl.bombY);
+                RectF br=new RectF(pl.bombX-9,pl.bombY-5,pl.bombX+9,pl.bombY+5);
+                if(planeBombImg!=null)c.drawBitmap(planeBombImg,null,br,pixel);
+                else{
+                    p.setColor(Color.rgb(72,82,48));c.drawOval(br,p);
+                    p.setColor(Color.YELLOW);c.drawRect(pl.bombX+2,pl.bombY-5,pl.bombX+4,pl.bombY+5,p);
+                }
+                c.restore();
             }
         }
 
