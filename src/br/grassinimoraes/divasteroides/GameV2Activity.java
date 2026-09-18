@@ -152,8 +152,9 @@ public class GameV2Activity extends Activity {
     }
 
     final class GameView extends View implements Runnable {
-        static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2;
+        static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
+        static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -166,8 +167,9 @@ public class GameV2Activity extends Activity {
         final RectF[] divisorRects=new RectF[MeteorMathV2.PRIMES.length];
         final RectF subMinus=new RectF(),subPlus=new RectF(),subUse=new RectF(),bombRect=new RectF(),repairRect=new RectF(),pauseRect=new RectF();
         final RectF[] menuButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
-        final RectF[] pauseButtons={new RectF(),new RectF(),new RectF(),new RectF()};
+        final RectF[] pauseButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
         final RectF victoryMenuRect=new RectF(),victoryExitRect=new RectF();
+        final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg;
         Bitmap cityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
@@ -194,7 +196,7 @@ public class GameV2Activity extends Activity {
 
         final float cannonX=400f, cannonY=228f;
         final float towerBaseY=390f;
-        float cannonAngle=-90f;
+        float cannonAngle=-45f;
         float cannonAnim=0f;
         float cannonDeploy=1f;
         float shotTimer=0f, shotDuration=.17f, shotStartX=400f, shotStartY=228f, shotTargetX=400f, shotTargetY=200f;
@@ -211,6 +213,13 @@ public class GameV2Activity extends Activity {
         float fireworkTimer=0f;
         boolean saveNotice=false;
         float saveNoticeTimer=0f;
+        boolean intermission=false;
+        boolean manualFromPause=false;
+        boolean bombSequence=false;
+        float bombSequenceTimer=0f;
+        Meteor pendingBonusTarget;
+        float pendingBonusTimer=0f;
+        int lastDivisorAcquired=0;
 
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
