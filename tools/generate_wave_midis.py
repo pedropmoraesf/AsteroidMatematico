@@ -248,6 +248,11 @@ set "SF2=%BASE%Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2"
 set "FLUID=%BASE%fluidsynth.exe"
 set "FFMPEG=%BASE%ffmpeg.exe"
 
+REM Se o ZIP tiver sido extraido para uma subpasta, tenta tambem a pasta pai.
+if not exist "%SF2%" if exist "%BASE%..\Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2" set "SF2=%BASE%..\Timbres Of Heaven GM_GS_XG_SFX V 3.4 Final.sf2"
+if not exist "%FLUID%" if exist "%BASE%..\fluidsynth.exe" set "FLUID=%BASE%..\fluidsynth.exe"
+if not exist "%FFMPEG%" if exist "%BASE%..\ffmpeg.exe" set "FFMPEG=%BASE%..\ffmpeg.exe"
+
 if not exist "%FLUID%" (
     where fluidsynth >nul 2>nul
     if errorlevel 1 (
