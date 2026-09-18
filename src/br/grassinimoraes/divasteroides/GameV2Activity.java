@@ -148,6 +148,7 @@ public class GameV2Activity extends Activity {
 
     static final class Plane {
         float x,y,baseY,speed,bobPhase,trailTimer; boolean military,active=true; Meteor target; float strikeTimer;
+        boolean bombActive; float bombX,bombY,bombVY,bombAngle;
         RectF bounds(){ return new RectF(x-(military?50:56),y-(military?17:19),x+(military?50:56),y+(military?17:19)); }
     }
 
@@ -155,6 +156,8 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
+        static final int CITY_TILE_W=32, CITY_TILE_H=15, CITY_TILE_COLS=25, CITY_TILE_ROWS=5;
+        static final float CITY_TOP=315f, CITY_BOTTOM=390f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -163,6 +166,7 @@ public class GameV2Activity extends Activity {
         final WaveManager waves=new WaveManager();
         final List<Meteor> meteors=new ArrayList<Meteor>();
         final List<Particle> particles=new ArrayList<Particle>();
+        final List<Particle> uiParticles=new ArrayList<Particle>();
         final AudioBank audio;
         final RectF[] divisorRects=new RectF[MeteorMathV2.PRIMES.length];
         final RectF subMinus=new RectF(),subPlus=new RectF(),subUse=new RectF(),bombRect=new RectF(),repairRect=new RectF(),pauseRect=new RectF();
@@ -171,8 +175,8 @@ public class GameV2Activity extends Activity {
         final RectF victoryMenuRect=new RectF(),victoryExitRect=new RectF();
         final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
-        Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet;
-        Bitmap cityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
+        Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet,planeBombImg;
+        Bitmap cityImg,baseCityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
         Typeface gameFont;
 
         long last=SystemClock.uptimeMillis();
@@ -224,8 +228,15 @@ public class GameV2Activity extends Activity {
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
         long aimDownTime=0L;
         int aimTargetIndex=0,shotProjectileIndex=0,chargedProjectileValue=2;
+        boolean aimCharged=false,shotWasCharged=false;
+        float projectileParticleTimer=0f,hudChargeFlashTimer=0f;
+        int shotProjectileValue=2;
         int manualPage=0;
         float dirtParticleTimer=0f;
+
+        float protectedSiteHealth=100f,protectedFireTimer=0f;
+        boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
+        int protectedTileStart=0,protectedTileEnd=-1,lastProtectedBonus=0;
 
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
@@ -243,8 +254,9 @@ public class GameV2Activity extends Activity {
             lane=assetBitmap("graficos/lane_armas.png"); moneyImg=assetBitmap("graficos/dinheiro_bonus.png");
             subImg=assetBitmap("graficos/subtrator.png"); planeCommercial=assetBitmap("graficos/aviao_comercial.png");
             planeMilitary=assetBitmap("graficos/aviao_militar.png"); bombImg=assetBitmap("graficos/bomba0.png");
+            planeBombImg=assetBitmap("graficos/bomba_aviao_militar.png");
             targetImg=assetBitmap("graficos/alvo_quiz.png"); aimTargetSheet=assetBitmap("graficos/alvo1.png");
-            cityImg=assetBitmap("graficos/cidade_grande.png"); turretSheet=assetBitmap("graficos/torre.png");
+            baseCityImg=assetBitmap("graficos/cidade_grande.png"); cityImg=baseCityImg; turretSheet=assetBitmap("graficos/torre.png");
             cannonSheet=assetBitmap("graficos/canhao1.png"); meteorSheet=assetBitmap("graficos/meteoro e itens.png");
             projectileSheet=assetBitmap("graficos/projetil.png"); smokeImg=assetBitmap("graficos/fumaca1.png");
             molduraSheet=assetBitmap("graficos/moldura.png");
