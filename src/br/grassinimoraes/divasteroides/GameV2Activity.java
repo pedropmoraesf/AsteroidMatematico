@@ -715,6 +715,9 @@ public class GameV2Activity extends Activity {
                     .putInt("money",inv.money)
                     .putInt("bombZero",inv.bombZero)
                     .putFloat("shieldSeconds",inv.shieldSeconds)
+                    .putFloat("protectedSiteHealth",protectedSiteHealth)
+                    .putBoolean("protectedSiteDestroyed",protectedSiteDestroyed)
+                    .putBoolean("protectedSiteBonusAwarded",protectedSiteBonusAwarded)
                     .apply();
             saveNotice=true;saveNoticeTimer=1.6f;
         }
@@ -722,12 +725,13 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
+            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
             waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
@@ -744,6 +748,11 @@ public class GameV2Activity extends Activity {
             inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
+            loadCityForPhase();configureProtectedTiles();
+            protectedSiteHealth=waves.wave>1?Math.max(0f,Math.min(100f,sp.getFloat("protectedSiteHealth",100f))):100f;
+            protectedSiteDestroyed=waves.wave>1&&sp.getBoolean("protectedSiteDestroyed",false);
+            protectedSiteBonusAwarded=sp.getBoolean("protectedSiteBonusAwarded",false);
+            protectedFireTimer=0f;
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
             return true;
@@ -751,7 +760,8 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
-            pendingBonusTarget=null;meteors.clear();particles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
 
