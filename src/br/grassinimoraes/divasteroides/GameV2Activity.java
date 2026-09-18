@@ -428,7 +428,7 @@ public class GameV2Activity extends Activity {
 
             float reveal=Math.min(1f,shieldVisualAge/.70f);
             reveal=1f-(1f-reveal)*(1f-reveal);
-            float left=-55f,right=855f,base=318f,apex=250f;
+            float left=-55f,right=855f,base=306f,apex=242f;
             float half=(right-left)*.5f*reveal;
 
             Path edge=new Path();
@@ -478,7 +478,7 @@ public class GameV2Activity extends Activity {
             float y=shotStartY+(shotTargetY-shotStartY)*t;
             p.setColor(shotColor);p.setAlpha(110);c.drawCircle(x,y,7,p);p.setAlpha(255);
             if(projectileSheet!=null){
-                tintPaint.setColorFilter(new PorterDuffColorFilter(shotColor,PorterDuff.Mode.MULTIPLY));
+                tintPaint.setColorFilter(new PorterDuffColorFilter(shotColor,PorterDuff.Mode.SRC_ATOP));
                 drawTile(c,projectileSheet,8,1,Math.min(7,(int)(t*8)),new RectF(x-10,y-10,x+10,y+10),tintPaint);
                 tintPaint.setColorFilter(null);
             }else{p.setColor(shotColor);c.drawCircle(x,y,4,p);}
