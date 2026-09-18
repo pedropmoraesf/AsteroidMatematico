@@ -12,6 +12,7 @@ public class GameLogicTest {
         assertTrue(inv.divisors.contains(2));
         assertTrue(inv.divisors.contains(3));
         assertEquals(3,inv.highestDivisor());
+        assertFalse(inv.unlockDivisor(19));
         assertFalse(inv.unlockDivisor(37));
         assertTrue(inv.unlockDivisor(5));
         assertEquals(5,inv.highestDivisor());
@@ -60,7 +61,7 @@ public class GameLogicTest {
     @Test public void valorNormalNuncaUltrapassaDuzentos() {
         Random r=new Random(6789);
         for(int i=0;i<500;i++){
-            int n=MeteorMathV2.generateNormalValue(r,999,31,true);
+            int n=MeteorMathV2.generateNormalValue(r,999,17,true);
             assertTrue(n<=200);
             assertTrue(n>=2);
         }
