@@ -36,7 +36,9 @@ public class GameLogicTest {
         w.nextWave();
         assertEquals(2,w.wave);
         assertEquals(6,w.targetThisWave);
-        for(int i=0;i<20;i++)w.nextWave();
+        for(int i=0;i<40;i++)w.nextWave();
+        assertEquals(WaveManager.MAX_WAVE,w.wave);
+        assertTrue(w.isFinalWave());
         assertTrue(w.targetThisWave<=12);
         assertTrue(w.maxMeteorValue()<=200);
         assertTrue(w.meteorSpeed()>0f);
