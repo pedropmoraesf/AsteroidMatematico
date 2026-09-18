@@ -822,7 +822,7 @@ public class GameV2Activity extends Activity {
 
         void drawGame(Canvas c){
             p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawShieldDome(c);
-            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawHud(c);
+            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+waves.wave,400,112,22,Color.YELLOW,true);
@@ -943,19 +943,45 @@ public class GameV2Activity extends Activity {
         void saveScore(){if(scoreSaved||score<=0||destroyedTotal<=0)return;scoreSaved=true;try{SharedPreferences sp=getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE);String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss",java.util.Locale.getDefault()).format(new java.util.Date());int check=score%(destroyedTotal+1);sp.edit().putString(date,date+"|"+score+"|"+destroyedTotal+"|"+check).apply();}catch(Exception ignored){}}
         float deployedCannonY(){return cannonY+(1f-cannonDeploy)*(towerBaseY-cannonY);}
 
-        void drawCannon(Canvas c){float cy=deployedCannonY();int towerFrame=(int)((SystemClock.uptimeMillis()/80)%8);c.save();c.clipRect(0,0,800,towerBaseY);float towerHeight=towerBaseY-cannonY;if(turretSheet!=null)drawTile(c,turretSheet,8,1,towerFrame,new RectF(cannonX-21,cy,cannonX+21,cy+towerHeight),pixel);int frame=8;if(cannonAnim>0){float elapsed=.40f-cannonAnim;frame=Math.max(0,Math.min(7,(int)(elapsed/.05f)));}if(cannonSheet!=null){c.save();c.rotate(cannonAngle,cannonX,cy);drawTile(c,cannonSheet,8,2,frame,new RectF(cannonX-33,cy-33,cannonX+33,cy+33),pixel);c.restore();}c.restore();}
+        void drawCannon(Canvas c){
+            float cy=deployedCannonY();
+            int towerFrame=(int)((SystemClock.uptimeMillis()/80)%8);
+            c.save();c.clipRect(0,0,800,towerBaseY);
+            float towerHeight=towerBaseY-cannonY;
+            if(turretSheet!=null)drawTile(c,turretSheet,8,1,towerFrame,new RectF(cannonX-21,cy,cannonX+21,cy+towerHeight),pixel);
+            int frame=8;
+            if(aiming&&aimCharge>0)frame=8+Math.min(7,(int)(aimCharge*7f));
+            if(cannonAnim>0){float elapsed=.40f-cannonAnim;frame=Math.max(0,Math.min(7,(int)(elapsed/.05f)));}
+            if(cannonSheet!=null){
+                c.save();c.rotate(cannonAngle,cannonX,cy);
+                drawTile(c,cannonSheet,8,2,frame,new RectF(cannonX-33,cy-33,cannonX+33,cy+33),pixel);
+                c.restore();
+            }
+            c.restore();
+        }
         void drawProjectile(Canvas c){
             if(shotTimer<=0)return;
             float t=1f-shotTimer/shotDuration;t=Math.max(0,Math.min(1,t));
-            if(laserEnabled){p.setColor(Color.argb(115,shotColor>>16&255,shotColor>>8&255,shotColor&255));p.setStrokeWidth(1.5f);c.drawLine(shotStartX,shotStartY,shotTargetX,shotTargetY,p);}
+            if(laserEnabled){p.setColor(Color.argb(100,220,245,255));p.setStrokeWidth(1.2f);c.drawLine(shotStartX,shotStartY,shotTargetX,shotTargetY,p);}
             float x=shotStartX+(shotTargetX-shotStartX)*t;
             float y=shotStartY+(shotTargetY-shotStartY)*t;
-            p.setColor(shotColor);p.setAlpha(110);c.drawCircle(x,y,7,p);p.setAlpha(255);
             if(projectileSheet!=null){
-                tintPaint.setColorFilter(new PorterDuffColorFilter(shotColor,PorterDuff.Mode.SRC_ATOP));
-                drawTile(c,projectileSheet,8,1,Math.min(7,(int)(t*8)),new RectF(x-10,y-10,x+10,y+10),tintPaint);
-                tintPaint.setColorFilter(null);
-            }else{p.setColor(shotColor);c.drawCircle(x,y,4,p);}
+                drawTile(c,projectileSheet,8,1,shotProjectileIndex,new RectF(x-10,y-10,x+10,y+10),pixel);
+            }else{
+                p.setColor(Color.WHITE);c.drawCircle(x,y,4,p);
+            }
+        }
+
+        void drawAimTarget(Canvas c){
+            if(!aiming&&aimTargetTimer<=0)return;
+            float pulse=1f+.08f*(float)Math.sin(SystemClock.uptimeMillis()/75.0);
+            float r=25f*pulse;
+            if(aimTargetSheet!=null)drawTile(c,aimTargetSheet,8,1,aimTargetIndex,new RectF(aimX-r,aimY-r,aimX+r,aimY+r),pixel);
+            else{p.setColor(Color.RED);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawCircle(aimX,aimY,r,p);p.setStyle(Paint.Style.FILL);}
+            if(aiming){
+                String v=selectedMode==1?"SUB "+Math.max(1,inv.subtractorValue):String.valueOf(currentChargedDivisor());
+                drawOutlinedText(c,v,aimX,Math.max(18,aimY-r-7),13,aimCharge>0?Color.CYAN:Color.WHITE);
+            }
         }
 
         void drawMeteor(Canvas c,Meteor m){
