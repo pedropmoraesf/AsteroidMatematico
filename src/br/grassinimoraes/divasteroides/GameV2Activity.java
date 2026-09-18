@@ -692,39 +692,73 @@ public class GameV2Activity extends Activity {
 
         void damageCity(float amount,float impactX,boolean nuclear){if(inv.shieldSeconds>0&&!nuclear){audio.play("bonus_escudo.wav");return;}cityHealth-=amount;lastImpactX=(int)impactX;audio.play("impacto_cidade.wav");startCityShake(amount,nuclear);if(cityHealth<=0){cityHealth=0;gameOver=true;running=false;audio.play("game_over.wav");saveScore();}}
 
-        void aimAndFireAt(float tx,float ty,int color){
-            cannonAngle=(float)Math.toDegrees(Math.atan2(ty-cannonY,tx-cannonX));
+        void fireProjectileAt(float tx,float ty,int projectileIndex){
+            pointCannonAt(tx,ty);
             double rad=Math.toRadians(cannonAngle);
             float muzzleOffset=12f;
+            float cy=deployedCannonY();
             shotStartX=cannonX+(float)Math.cos(rad)*muzzleOffset;
-            shotStartY=cannonY+(float)Math.sin(rad)*muzzleOffset;
-            shotColor=color;
-            cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=tx;shotTargetY=ty;
+            shotStartY=cy+(float)Math.sin(rad)*muzzleOffset;
+            shotProjectileIndex=Math.max(0,Math.min(7,projectileIndex));
+            cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=aimX;shotTargetY=aimY;
             audio.play("disparo_canhao.wav");
         }
 
-        void aimAndFire(Meteor m,int color){aimAndFireAt(m.x,m.y,color);}
+        void queueBonusCollection(Meteor m){
+            if(m==null||m.dead||pendingBonusTarget!=null)return;
+            pendingBonusTarget=m;m.targetBlink=true;m.blinkTime=0;pendingBonusTimer=shotDuration;
+            audio.play("alvo_trava.wav");
+        }
 
-        int projectileColorForDivisor(int d){
-            switch(d){
-                case 2:return Color.rgb(80,220,255);
-                case 3:return Color.rgb(255,230,70);
-                case 5:return Color.rgb(90,240,115);
-                case 7:return Color.rgb(255,105,210);
-                case 11:return Color.rgb(255,145,45);
-                case 13:return Color.rgb(105,165,255);
-                case 17:return Color.rgb(185,255,75);
-                case 19:return Color.rgb(185,105,255);
-                case 23:return Color.rgb(255,80,80);
-                case 29:return Color.rgb(235,235,235);
-                case 31:return Color.rgb(70,255,210);
-                default:return Color.YELLOW;
+        void applyDivisorShot(Meteor m,int divisor){
+            if(MeteorMathV2.canDivide(m.value,divisor)){
+                m.value/=divisor;
+                audio.play("divisao_correta.wav");
+                burst(m.x,m.y,Color.rgb(100,255,120),10);
+                m.radius=Math.max(11,m.radius*.88f);
+                if(m.value<=1)explode(m,true,false);
+            }else{
+                audio.play("divisao_errada.wav");
+                burst(m.x,m.y,Color.rgb(255,80,60),7);
+                score=Math.max(0,score-2);
             }
         }
 
-        void hitMeteor(Meteor m){
-            if(m==null||m.dead)return;if(m.kind==Kind.BONUS){shootBonus(m);return;}if(m.kind==Kind.ADD||m.kind==Kind.MULT){openQuiz(m);return;}if(selectedMode==1){useSubtractor(m);return;}
-            int d=inv.selectedDivisor;aimAndFire(m,projectileColorForDivisor(d));if(MeteorMathV2.canDivide(m.value,d)){m.value/=d;audio.play("divisao_correta.wav");burst(m.x,m.y,Color.rgb(100,255,120),10);m.radius=Math.max(11,m.radius*.88f);if(m.value<=1)explode(m,true,false);}else{audio.play("divisao_errada.wav");burst(m.x,m.y,Color.rgb(255,80,60),7);score=Math.max(0,score-2);}
+        void applySubtractorShot(Meteor m){
+            int amount=inv.subtractorValue;
+            if(amount<1||amount>inv.subtractorCharge||!inv.spendSubtractor(amount)){
+                audio.play("divisao_errada.wav");return;
+            }
+            audio.play("subtrator_uso.wav");
+            burst(m.x,m.y,Color.CYAN,10);
+            if(amount>=m.value){m.value=0;explode(m,true,false);}
+            else m.value-=amount;
+        }
+
+        void resolveShotAt(float x,float y,int projectileValue){
+            Meteor hit=null;
+            for(int i=meteors.size()-1;i>=0;i--){
+                Meteor m=meteors.get(i);
+                if(!m.dead&&m.bounds().contains(x,y)){hit=m;break;}
+            }
+            if(hit==null)return;
+            if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
+            if(hit.kind==Kind.ADD||hit.kind==Kind.MULT){openQuiz(hit);return;}
+            if(selectedMode==1){applySubtractorShot(hit);return;}
+            applyDivisorShot(hit,projectileValue);
+        }
+
+        void releaseAimedShot(){
+            updateAimCharge(0f);
+            int value=selectedMode==1?Math.max(1,inv.subtractorValue):currentChargedDivisor();
+            int projectileIndex=aimTargetIndex;
+            chargedProjectileValue=value;
+            fireProjectileAt(aimX,aimY,projectileIndex);
+            resolveShotAt(aimX,aimY,value);
+            aiming=false;
+            aimTargetTimer=.34f;
+            aimCharge=0f;
+            chargeParticleTimer=0f;
         }
 
         void collectBonus(Meteor m){
@@ -732,15 +766,6 @@ public class GameV2Activity extends Activity {
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
 
-        void useSubtractor(Meteor m){
-            int amount=inv.subtractorValue;
-            if(amount<1||amount>inv.subtractorCharge||!inv.spendSubtractor(amount)){audio.play("divisao_errada.wav");return;}
-            aimAndFire(m,Color.rgb(100,235,255));
-            audio.play("subtrator_uso.wav");
-            burst(m.x,m.y,Color.CYAN,10);
-            if(amount>=m.value){m.value=0;explode(m,true,false);}
-            else m.value-=amount;
-        }
         void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
