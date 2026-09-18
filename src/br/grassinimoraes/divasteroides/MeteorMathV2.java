@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 final class MeteorMathV2 {
-    static final int[] PRIMES = {2,3,5,7,11,13,17,19,23,29,31};
+    static final int[] PRIMES = {2,3,5,7,11,13,17};
 
     static final class Quiz {
         final int a, b, answer;
