@@ -357,30 +357,147 @@ public class GameV2Activity extends Activity {
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
-        int protectedTileCenterForPhase(){
-            int[] centers={0,0,20,30,22,20,24,38,20,30,22,24,28,18,40,30,24,40,42,28,26,20,24,42,34,26};
-            return centers[Math.max(1,Math.min(25,waves.wave))];
+        float protectedCenterFractionForPhase(){
+            float[] v={0f,0f,.43f,.61f,.44f,.44f,.58f,.42f,.45f,.70f,.47f,.87f,.45f,.75f,.42f,.55f,.88f,.85f,.56f,.43f,.60f,.68f,.58f,.57f,.60f,.62f};
+            return v[Math.max(1,Math.min(25,waves.wave))];
         }
 
-        void configureProtectedTiles(){
-            if(waves.wave<=1){protectedTileStart=0;protectedTileEnd=-1;return;}
-            int center=protectedTileCenterForPhase();
-            int half=(waves.wave==2||waves.wave==15||waves.wave==25)?2:1;
-            protectedTileStart=Math.max(0,center-half);
-            protectedTileEnd=Math.min(CITY_TILE_COLS-1,center+half);
+        float protectedWidthFractionForPhase(){
+            float[] v={0f,0f,.10f,.16f,.12f,.14f,.20f,.18f,.12f,.23f,.12f,.10f,.14f,.18f,.17f,.20f,.10f,.12f,.20f,.12f,.12f,.15f,.25f,.13f,.18f,.22f};
+            return v[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        void configurePhysicalDamageGrid(){
+            android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+            float xdpi=(dm.xdpi>100f&&dm.xdpi<1000f)?dm.xdpi:385f;
+            float ydpi=(dm.ydpi>100f&&dm.ydpi<1000f)?dm.ydpi:385f;
+            float pxPerMmX=xdpi/25.4f;
+            float pxPerMmY=ydpi/25.4f;
+            float physicalW=CITY_BITMAP_W*Math.max(.01f,scaleX);
+            float physicalH=CITY_BITMAP_H*Math.max(.01f,scaleY);
+            damageCols=Math.max(72,Math.min(256,Math.round(physicalW/(pxPerMmX*TARGET_TILE_MM))));
+            damageRows=Math.max(7,Math.min(48,Math.round(physicalH/(pxPerMmY*TARGET_TILE_MM))));
+            damageCellW=CITY_BITMAP_W/(float)damageCols;
+            damageCellH=CITY_BITMAP_H/(float)damageRows;
+        }
+
+        Rect atlasSourceRectForPhase(int phase){
+            int idx=Math.max(0,Math.min(23,phase-2));
+            boolean right=idx>=12;
+            int row=idx%12;
+            int[] leftTop={37,120,206,308,399,490,580,662,752,841,911,989};
+            int[] leftBottom={92,182,272,360,447,539,630,718,805,884,960,1024};
+            int[] rightTop={39,127,216,307,396,477,574,655,741,833,906,980};
+            int[] rightBottom={92,179,269,357,447,535,626,713,796,878,949,1024};
+            int refLeft=right?788:8;
+            int refRight=right?1527:747;
+            int refTop=right?rightTop[row]:leftTop[row];
+            int refBottom=right?rightBottom[row]:leftBottom[row];
+            if(cityAtlas==null)return new Rect(0,0,1,1);
+            float sx=cityAtlas.getWidth()/1536f;
+            float sy=cityAtlas.getHeight()/1024f;
+            int l=Math.max(0,Math.round(refLeft*sx));
+            int r=Math.min(cityAtlas.getWidth(),Math.round(refRight*sx));
+            int t=Math.max(0,Math.round(refTop*sy));
+            int b=Math.min(cityAtlas.getHeight(),Math.round(refBottom*sy));
+            return new Rect(l,t,Math.max(l+1,r),Math.max(t+1,b));
+        }
+
+        void clearAtlasBackground(Bitmap b){
+            if(b==null)return;
+            int w=b.getWidth(),h=b.getHeight();
+            int[] src=new int[w*h];
+            int[] out=new int[w*h];
+            b.getPixels(src,0,w,0,0,w,h);
+            for(int y=0;y<h;y++){
+                for(int x=0;x<w;x++){
+                    int i=y*w+x;
+                    int c=src[i];
+                    int rr=(c>>16)&255,gg=(c>>8)&255,bb=c&255;
+                    boolean black=rr<8&&gg<8&&bb<8;
+                    if(!black){out[i]=c;continue;}
+                    boolean touchesArt=false;
+                    for(int yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1)&&!touchesArt;yy++){
+                        for(int xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+                            int n=src[yy*w+xx];
+                            int nr=(n>>16)&255,ng=(n>>8)&255,nb=n&255;
+                            if(nr>=12||ng>=12||nb>=12){touchesArt=true;break;}
+                        }
+                    }
+                    out[i]=touchesArt?Color.BLACK:Color.TRANSPARENT;
+                }
+            }
+            b.setPixels(out,0,w,0,0,w,h);
+        }
+
+        void buildRuntimeCity(Bitmap source,Rect src,boolean atlasSource){
+            cityRuntime=Bitmap.createBitmap(CITY_BITMAP_W,CITY_BITMAP_H,Bitmap.Config.ARGB_8888);
+            cityRuntimeCanvas=new Canvas(cityRuntime);
+            cityRuntimeCanvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR);
+            if(source!=null){
+                Rect sourceRect=src!=null?src:new Rect(0,0,source.getWidth(),source.getHeight());
+                cityRuntimeCanvas.drawBitmap(source,sourceRect,new Rect(0,0,CITY_BITMAP_W,CITY_BITMAP_H),pixel);
+                if(atlasSource)clearAtlasBackground(cityRuntime);
+            }
+            cityImg=cityRuntime;
         }
 
         void loadCityForPhase(){
-            if(waves.wave<=1){cityImg=baseCityImg;return;}
-            Bitmap phase=assetBitmap(String.format(java.util.Locale.US,"graficos/cidades/cidade_%02d.png",waves.wave));
-            cityImg=phase!=null?phase:baseCityImg;
+            if(waves.wave<=1){
+                buildRuntimeCity(baseCityImg,null,false);
+            }else if(cityAtlas!=null){
+                buildRuntimeCity(cityAtlas,atlasSourceRectForPhase(waves.wave),true);
+            }else{
+                buildRuntimeCity(baseCityImg,null,false);
+            }
+        }
+
+        void initializeDamageGrid(){
+            configurePhysicalDamageGrid();
+            citySolid=new boolean[damageRows][damageCols];
+            cityDestroyed=new boolean[damageRows][damageCols];
+            protectedCells=new boolean[damageRows][damageCols];
+            if(cityRuntime==null)return;
+            int[] pixels=new int[CITY_BITMAP_W*CITY_BITMAP_H];
+            cityRuntime.getPixels(pixels,0,CITY_BITMAP_W,0,0,CITY_BITMAP_W,CITY_BITMAP_H);
+            for(int row=0;row<damageRows;row++){
+                int py0=Math.max(0,(int)Math.floor(row*damageCellH));
+                int py1=Math.min(CITY_BITMAP_H,(int)Math.ceil((row+1)*damageCellH));
+                for(int col=0;col<damageCols;col++){
+                    int px0=Math.max(0,(int)Math.floor(col*damageCellW));
+                    int px1=Math.min(CITY_BITMAP_W,(int)Math.ceil((col+1)*damageCellW));
+                    int visible=0;
+                    for(int py=py0;py<py1&&visible<2;py++){
+                        for(int px=px0;px<px1;px++){
+                            if(((pixels[py*CITY_BITMAP_W+px]>>>24)&255)>20){visible++;if(visible>=2)break;}
+                        }
+                    }
+                    citySolid[row][col]=visible>0;
+                }
+            }
+            configureProtectedCells();
+        }
+
+        void configureProtectedCells(){
+            if(protectedCells==null)return;
+            for(int r=0;r<damageRows;r++)java.util.Arrays.fill(protectedCells[r],false);
+            if(waves.wave<=1)return;
+            float center=protectedCenterFractionForPhase();
+            float width=protectedWidthFractionForPhase();
+            int c0=Math.max(0,(int)Math.floor((center-width*.5f)*damageCols));
+            int c1=Math.min(damageCols-1,(int)Math.ceil((center+width*.5f)*damageCols));
+            for(int r=0;r<damageRows;r++){
+                for(int c=c0;c<=c1;c++){
+                    if(citySolid!=null&&citySolid[r][c])protectedCells[r][c]=true;
+                }
+            }
         }
 
         void preparePhase(){
             lastDivisorAcquired=scheduledDivisorForPhase();
             if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
             loadCityForPhase();
-            configureProtectedTiles();
+            initializeDamageGrid();
             protectedSiteHealth=100f;
             protectedSiteDestroyed=false;
             protectedSiteBonusAwarded=false;
