@@ -630,7 +630,7 @@ public class GameV2Activity extends Activity {
             super.onDraw(c);
             c.save();
             c.scale(scaleX,scaleY);
-            if(!running&&!preWave&&!gameOver&&!waveClear&&!victory)drawMenu(c);else drawGame(c);
+            if(!running&&!preWave&&!gameOver&&!waveClear&&!victory&&!intermission)drawMenu(c);else drawGame(c);
             if(introWhiteFade>0){
                 float t=Math.max(0,Math.min(1,introWhiteFade/.30f));
                 p.setColor(Color.argb((int)(255*t),255,255,255));
@@ -638,7 +638,7 @@ public class GameV2Activity extends Activity {
             }
             c.restore();
         }
-        void drawMenu(Canvas c){p.setColor(Color.rgb(3,10,25));c.drawRect(0,0,800,480,p);if(menuBg!=null)drawCenterCrop(c,menuBg,new RectF(0,0,800,480),.56f);p.setColor(Color.argb(45,0,8,20));c.drawRect(0,0,800,480,p);if(menuPage==MENU_MAIN)drawMainMenu(c);else if(menuPage==MENU_SCORE)drawScores(c);else drawOptions(c);}
+        void drawMenu(Canvas c){p.setColor(Color.rgb(3,10,25));c.drawRect(0,0,800,480,p);if(menuBg!=null)drawCenterCrop(c,menuBg,new RectF(0,0,800,480),.56f);p.setColor(Color.argb(45,0,8,20));c.drawRect(0,0,800,480,p);if(menuPage==MENU_MAIN)drawMainMenu(c);else if(menuPage==MENU_SCORE)drawScores(c);else if(menuPage==MENU_OPTIONS)drawOptions(c);else drawManual(c,false);}
         void drawMainMenu(Canvas c){
             drawText(c,"ASTEROIDE MATEMATICO",400,70,34,Color.WHITE,true);
             String[] labels={"INICIAR","CARREGAR JOGO SALVO","VER PONTUACAO","OPCOES","SAIR"};
@@ -657,13 +657,30 @@ public class GameV2Activity extends Activity {
         }
 
         String difficultyName(){String[] n={"MUITO FACIL","FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
-        void drawOptions(Canvas c){drawDarkCard(c,180,45,620,430);drawText(c,"OPCOES",400,82,30,Color.CYAN,true);drawMenuButton(c,new RectF(245,105,555,148),"DIFICULDADE: "+difficultyName(),false);drawMenuButton(c,new RectF(245,163,555,206),"MIRA LASER: "+(laserEnabled?"LIGADA":"DESLIGADA"),false);drawMenuButton(c,new RectF(245,221,555,264),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);drawMenuButton(c,new RectF(245,279,555,322),"APAGAR SCORE",false);if(scoreClearedNotice)drawText(c,"SCORE APAGADO",400,346,13,Color.YELLOW,true);drawMenuButton(c,new RectF(310,365,490,407),"VOLTAR",false);}
+        void drawOptions(Canvas c){
+            drawDarkCard(c,180,35,620,440);drawText(c,"OPCOES",400,70,30,Color.CYAN,true);
+            drawMenuButton(c,new RectF(245,88,555,128),"DIFICULDADE: "+difficultyName(),false);
+            drawMenuButton(c,new RectF(245,140,555,180),"MIRA LASER: "+(laserEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(245,192,555,232),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(245,244,555,284),"MANUAL",false);
+            drawMenuButton(c,new RectF(245,296,555,336),"APAGAR SCORE",false);
+            if(scoreClearedNotice)drawText(c,"SCORE APAGADO",400,356,13,Color.YELLOW,true);
+            drawMenuButton(c,new RectF(310,378,490,418),"VOLTAR",false);
+        }
 
         void drawGame(Canvas c){
             p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawShieldDome(c);
             for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawHud(c);
-            if(preWave){p.setColor(Color.argb(125+(int)(70*Math.abs(Math.sin(preWaveTimer*4))),180,0,0));c.drawRect(0,0,800,390,p);drawText(c,"ALERTA - ONDA "+waves.wave,400,185,34,Color.WHITE,true);drawText(c,"METEOROS SE APROXIMANDO",400,225,20,Color.YELLOW,true);drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,270,18,Color.WHITE,true);}
-            if(waveClear){p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);drawText(c,"ONDA "+completedWave+" CONCLUIDA",400,190,36,Color.CYAN,true);drawText(c,"CIDADE REPARADA - 100%",400,232,18,Color.WHITE,true);}
+            if(preWave){
+                p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
+                drawText(c,"FASE "+waves.wave,400,112,22,Color.YELLOW,true);
+                drawText(c,"PROTEJA "+phaseCityName()+"!",400,154,31,Color.WHITE,true);
+                drawText(c,phaseObjective(),400,194,15,Color.CYAN,true);
+                if(lastDivisorAcquired>0)drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
+                drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
+            }
+            if(waveClear){p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);drawText(c,"FASE "+completedWave+" CONCLUIDA",400,190,36,Color.CYAN,true);drawText(c,"CIDADE REPARADA - 100%",400,232,18,Color.WHITE,true);}
+            if(intermission)drawIntermission(c);
             if(quizOpen)drawQuiz(c);
             if(paused)drawPauseMenu(c);
             if(victory)drawVictory(c);
@@ -671,21 +688,51 @@ public class GameV2Activity extends Activity {
         }
 
         void drawPauseMenu(Canvas c){
+            if(manualFromPause){drawManual(c,true);return;}
             p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
-            drawDarkCard(c,210,42,590,365);drawText(c,"PAUSADO",400,82,32,Color.WHITE,true);
-            String[] labels={"CONTINUAR","MENU INICIAL","SALVAR JOGO","SAIR DO JOGO"};
-            float top=105;
+            drawDarkCard(c,210,24,590,378);drawText(c,"PAUSADO",400,58,30,Color.WHITE,true);
+            String[] labels={"CONTINUAR","MENU INICIAL","SALVAR JOGO","MANUAL","SAIR DO JOGO"};
+            float top=78;
             for(int i=0;i<labels.length;i++){
-                RectF r=pauseButtons[i];r.set(270,top+i*57,530,top+42+i*57);
+                RectF r=pauseButtons[i];r.set(270,top+i*55,530,top+40+i*55);
                 drawMenuButton(c,r,labels[i],i==0);
             }
-            if(saveNotice)drawText(c,"JOGO SALVO",400,350,13,Color.YELLOW,true);
+            if(saveNotice)drawText(c,"JOGO SALVO",400,368,12,Color.YELLOW,true);
+        }
+
+        void drawManual(Canvas c,boolean overlay){
+            if(overlay){p.setColor(Color.argb(220,0,0,0));c.drawRect(0,0,800,390,p);}
+            drawDarkCard(c,90,28,710,445);
+            drawText(c,"MANUAL RAPIDO",400,62,27,Color.CYAN,true);
+            drawText(c,"Toque em um ponto do ceu para apontar e disparar.",120,98,13,Color.WHITE,false);
+            drawText(c,"Meteoros: escolha um divisor exato para reduzir o numero.",120,124,13,Color.WHITE,false);
+            drawText(c,"Itens: atire neles para coletar dinheiro, escudo e bonus.",120,150,13,Color.WHITE,false);
+            drawText(c,"SUBTRATOR: gasta carga somente quando acerta um meteoro.",120,176,13,Color.WHITE,false);
+            drawText(c,"BOMBA 0: congela a tela, marca e zera todos os meteoros.",120,202,13,Color.WHITE,false);
+            drawText(c,"DINHEIRO: entre fases compre Bomba 0 ou carga Subtrator.",120,228,13,Color.WHITE,false);
+            drawText(c,"Quizzes especiais chamam o aviao militar quando corretos.",120,254,13,Color.WHITE,false);
+            drawText(c,"Proteja a cidade e o ponto turistico indicado em cada fase.",120,280,13,Color.WHITE,false);
+            drawText(c,"A campanha termina apos a Fase 25.",120,306,13,Color.YELLOW,false);
+            drawMenuButton(c,new RectF(310,372,490,414),"VOLTAR",false);
+        }
+
+        void drawIntermission(Canvas c){
+            p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
+            drawDarkCard(c,160,45,640,365);
+            drawText(c,"INTERVALO ENTRE FASES",400,82,25,Color.CYAN,true);
+            drawText(c,"DINHEIRO: $"+inv.money,400,112,16,Color.YELLOW,true);
+            shopSubRect.set(215,140,585,190);
+            shopBombRect.set(215,210,585,260);
+            shopNextRect.set(285,300,515,346);
+            drawMenuButton(c,shopSubRect,"SUBTRATOR +10   $"+SHOP_SUBTRACTOR_COST,false);
+            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   $"+SHOP_BOMB_COST,false);
+            drawMenuButton(c,shopNextRect,"PROXIMA FASE",true);
         }
 
         void drawVictory(Canvas c){
             p.setColor(Color.argb(100,0,8,22));c.drawRect(0,0,800,480,p);
             drawText(c,"VITORIA!",400,118,46,Color.YELLOW,true);
-            drawText(c,"25 ONDAS CONCLUIDAS",400,158,24,Color.WHITE,true);
+            drawText(c,"25 FASES CONCLUIDAS",400,158,24,Color.WHITE,true);
             drawText(c,"PONTOS: "+score,400,193,19,Color.CYAN,true);
             victoryMenuRect.set(285,255,515,302);victoryExitRect.set(285,320,515,367);
             drawMenuButton(c,victoryMenuRect,"MENU INICIAL",true);
@@ -802,7 +849,7 @@ public class GameV2Activity extends Activity {
             drawText(c,"+",543,454,18,Color.WHITE,true);
 
             bombRect.set(576,404,643,466);
-            p.setColor(selectedMode==2?Color.rgb(112,70,24):Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
+            p.setColor(Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
             drawText(c,"BOMBA 0",609,414,9,Color.LTGRAY,true);
             if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(593,419,625,451),pixel);
             drawText(c,"x"+inv.bombZero,609,464,10,Color.YELLOW,true);
@@ -813,7 +860,7 @@ public class GameV2Activity extends Activity {
             drawText(c,"$"+inv.money,738,425,12,Color.YELLOW,true);
             drawText(c,"REPARAR",738,448,11,Color.WHITE,true);
 
-            drawText(c,"ONDA "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);
+            drawText(c,"FASE "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);
             drawText(c,"PONTOS "+score,12,43,14,Color.YELLOW,false);
             p.setColor(Color.rgb(60,20,20));c.drawRect(12,55,220,71,p);
             p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);
