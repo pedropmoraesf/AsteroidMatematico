@@ -567,6 +567,7 @@ public class GameV2Activity extends Activity {
         }
 
         void damageProtectedSite(float amount,float x){
+            if(inv.shieldSeconds>0)return;
             if(!protectedTileHit(x))return;
             protectedSiteHealth=Math.max(0f,protectedSiteHealth-Math.max(8f,amount*1.8f));
             RectF r=protectedTileRect();
@@ -1079,16 +1080,17 @@ public class GameV2Activity extends Activity {
 
             if(manualPage==0){
                 drawText(c,"OBJETIVO PRIMARIO",92,112,14,Color.YELLOW,false);
-                drawText(c,"Proteja a cidade e o ponto estrategico indicado em cada fase.",92,134,12,Color.WHITE,false);
-                drawText(c,"CONTROLE DE TIRO",92,166,14,Color.YELLOW,false);
-                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,188,12,Color.WHITE,false);
-                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,210,12,Color.WHITE,false);
-                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,232,12,Color.WHITE,false);
-                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,254,12,Color.WHITE,false);
-                drawText(c,"ARSENAL",92,286,14,Color.YELLOW,false);
-                drawText(c,"7 municoes de divisor: 2, 3, 5, 7, 11, 13 e 17.",92,308,12,Color.WHITE,false);
-                drawText(c,"8o alvo/projetil: SUBTRATOR. Todo disparo consome a carga escolhida.",92,330,12,Color.WHITE,false);
-                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,352,12,Color.WHITE,false);
+                drawText(c,"Proteja a cidade. Da Fase 2 em diante, o ponto estrategico tem vida propria.",92,134,12,Color.WHITE,false);
+                drawText(c,"Se o ponto sobreviver, a fase concede bonus de pontuacao.",92,154,12,Color.LTGRAY,false);
+                drawText(c,"CONTROLE DE TIRO",92,178,14,Color.YELLOW,false);
+                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,200,12,Color.WHITE,false);
+                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,222,12,Color.WHITE,false);
+                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,244,12,Color.WHITE,false);
+                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,266,12,Color.WHITE,false);
+                drawText(c,"ARSENAL",92,294,14,Color.YELLOW,false);
+                drawText(c,"7 municoes de divisor: 2, 3, 5, 7, 11, 13 e 17.",92,316,12,Color.WHITE,false);
+                drawText(c,"8o alvo/projetil: SUBTRATOR. Todo disparo consome a carga escolhida.",92,338,12,Color.WHITE,false);
+                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,360,12,Color.WHITE,false);
                 drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
             }else{
                 drawText(c,"PROTOCOLO DE DIVISIBILIDADE",92,112,14,Color.YELLOW,false);
