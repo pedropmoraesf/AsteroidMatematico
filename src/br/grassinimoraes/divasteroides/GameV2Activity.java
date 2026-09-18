@@ -740,6 +740,7 @@ public class GameV2Activity extends Activity {
         }
 
         void applyCityImpact(float impactX,float impactY,float amount,float meteorRadius){
+            if(inv.shieldSeconds>0)return;
             if(citySolid==null||cityDestroyed==null)return;
             float localY=Math.max(0f,Math.min(CITY_BITMAP_H-1f,impactY-CITY_TOP));
             int centerC=Math.max(0,Math.min(damageCols-1,(int)(impactX/damageCellW)));
@@ -1083,14 +1084,29 @@ public class GameV2Activity extends Activity {
         }
 
         void updateMeteors(float dt){
-            Iterator<Meteor> it=meteors.iterator();while(it.hasNext()){
-                Meteor m=it.next();if(m.dead){it.remove();continue;}if(m==pendingBonusTarget)continue;emitMeteorTrail(m,dt);m.y+=m.speed*dt;
-                if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){commercial.active=false;commercial=null;audio.play("aviao_comercial_atingido.wav");damageCity(6,m.x,false);burst(m.x,m.y,Color.LTGRAY,18);m.dead=true;continue;}
-                if(m.y>318){
-                    if(m.kind==Kind.BONUS)damageCity(3,m.x,false);
-                    else{
+            Iterator<Meteor> it=meteors.iterator();
+            while(it.hasNext()){
+                Meteor m=it.next();
+                if(m.dead){it.remove();continue;}
+                if(m==pendingBonusTarget)continue;
+                emitMeteorTrail(m,dt);
+                m.y+=m.speed*dt;
+
+                if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){
+                    commercial.active=false;commercial=null;
+                    audio.play("aviao_comercial_atingido.wav");
+                    damageCity(6,m.x,false);
+                    burst(m.x,m.y,Color.LTGRAY,18);
+                    m.dead=true;continue;
+                }
+
+                float collisionY=cityCollisionYAt(m.x);
+                if(m.y+m.radius>=collisionY){
+                    if(m.kind==Kind.BONUS){
+                        damageCity(3,m.x,false);
+                    }else{
                         float impact=Math.min(18,4+m.value/18f);
-                        damageProtectedSite(impact,m.x);
+                        applyCityImpact(m.x,collisionY,impact,m.radius);
                         damageCity(impact,m.x,false);
                     }
                     m.dead=true;
@@ -1343,17 +1359,20 @@ public class GameV2Activity extends Activity {
         void drawCity(Canvas c){if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,315,800,390),pixel);else{p.setColor(Color.DKGRAY);c.drawRect(0,330,800,390,p);}int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);for(int i=0;i<smokes;i++){float x=55+(i*137+lastImpactX/3)%690;drawSmoke(c,x,337+(i%2)*12);}}
 
         void drawProtectedSiteDamage(Canvas c){
-            if(!protectedSiteActive())return;
-            RectF r=protectedTileRect();
-            if(protectedSiteDestroyed){
-                p.setColor(Color.argb(195,18,18,16));c.drawRect(r,p);
-                p.setColor(Color.rgb(70,70,66));c.drawRect(r.left,CITY_TOP+38,r.right,CITY_BOTTOM,p);
-                int flicker=(int)(SystemClock.uptimeMillis()/90)%3;
-                for(int i=0;i<5;i++){
-                    float fx=r.left+5+(i*13)%(Math.max(8,(int)r.width()-8));
-                    float top=CITY_TOP+28-flicker*2-(i%2)*6;
-                    p.setColor((i&1)==0?Color.rgb(255,70,10):Color.rgb(255,190,25));
-                    c.drawRect(fx,top,fx+6,CITY_TOP+52,p);
+            if(!protectedSiteActive()||protectedCells==null||cityDestroyed==null)return;
+            int flicker=(int)(SystemClock.uptimeMillis()/85)%3;
+            for(int row=0;row<damageRows;row++){
+                for(int col=0;col<damageCols;col++){
+                    if(!protectedCells[row][col]||!cityDestroyed[row][col])continue;
+                    RectF r=cellWorldRect(row,col);
+                    p.setColor(Color.argb(205,28,25,22));c.drawRect(r,p);
+                    p.setColor(Color.rgb(92,88,82));
+                    c.drawRect(r.left,r.bottom-Math.max(1f,r.height()*.30f),r.right,r.bottom,p);
+                    if(protectedSiteDestroyed){
+                        p.setColor(((row+col)&1)==0?Color.rgb(255,70,10):Color.rgb(255,190,25));
+                        float flameTop=r.top+Math.max(0f,r.height()*.12f-flicker);
+                        c.drawRect(r.left+1,flameTop,r.right-1,r.bottom-1,p);
+                    }
                 }
             }
         }
