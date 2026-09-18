@@ -904,6 +904,42 @@ public class GameV2Activity extends Activity {
 
         boolean hasSavedGame(){return savePrefs().getBoolean("exists",false);}
 
+        String serializeCityDamage(){
+            if(cityDestroyed==null)return "";
+            StringBuilder out=new StringBuilder();
+            out.append(damageCols).append('x').append(damageRows).append('|');
+            boolean first=true;
+            for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++){
+                if(!cityDestroyed[r][c])continue;
+                if(!first)out.append(',');
+                out.append(r*damageCols+c);
+                first=false;
+            }
+            return out.toString();
+        }
+
+        void restoreCityDamage(String encoded){
+            if(encoded==null||encoded.length()==0||cityDestroyed==null)return;
+            try{
+                int bar=encoded.indexOf('|');
+                if(bar<0)return;
+                String[] dim=encoded.substring(0,bar).split("x");
+                if(dim.length!=2)return;
+                int cols=Integer.parseInt(dim[0]),rows=Integer.parseInt(dim[1]);
+                if(cols!=damageCols||rows!=damageRows)return;
+                String body=encoded.substring(bar+1);
+                if(body.length()==0)return;
+                for(String token:body.split(",")){
+                    int idx=Integer.parseInt(token);
+                    int r=idx/damageCols,c=idx%damageCols;
+                    if(r>=0&&r<damageRows&&c>=0&&c<damageCols){
+                        cityDestroyed[r][c]=true;
+                        eraseRuntimeCell(r,c);
+                    }
+                }
+            }catch(Exception ignored){}
+        }
+
         void saveGame(){
             StringBuilder divs=new StringBuilder();
             for(Integer d:inv.divisors){if(divs.length()>0)divs.append(',');divs.append(d);}
@@ -926,6 +962,7 @@ public class GameV2Activity extends Activity {
                     .putFloat("protectedSiteHealth",protectedSiteHealth)
                     .putBoolean("protectedSiteDestroyed",protectedSiteDestroyed)
                     .putBoolean("protectedSiteBonusAwarded",protectedSiteBonusAwarded)
+                    .putString("cityDamageGrid",serializeCityDamage())
                     .apply();
             saveNotice=true;saveNoticeTimer=1.6f;
         }
@@ -956,7 +993,8 @@ public class GameV2Activity extends Activity {
             inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
-            loadCityForPhase();configureProtectedTiles();
+            loadCityForPhase();initializeDamageGrid();
+            restoreCityDamage(sp.getString("cityDamageGrid",""));
             protectedSiteHealth=waves.wave>1?Math.max(0f,Math.min(100f,sp.getFloat("protectedSiteHealth",100f))):100f;
             protectedSiteDestroyed=waves.wave>1&&sp.getBoolean("protectedSiteDestroyed",false);
             protectedSiteBonusAwarded=sp.getBoolean("protectedSiteBonusAwarded",false);
