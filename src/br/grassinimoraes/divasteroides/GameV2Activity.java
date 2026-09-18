@@ -292,6 +292,91 @@ public class GameV2Activity extends Activity {
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
 
+        String phaseCityName(){
+            String[] names={"","CIDADE INICIAL","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","BELEM","GOIANIA","CAMPINAS","VITORIA","FLORIANOPOLIS","NATAL","JOAO PESSOA","MACEIO","ARACAJU","SAO LUIS","CUIABA","CAMPO GRANDE","CAMPOS DOS GOYTACAZES","NITEROI","BRASILIA"};
+            return names[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        String phaseObjective(){
+            String[] objectives={"","A CIDADE DEVE SOBREVIVER","O CRISTO REDENTOR DEVE SOBREVIVER","A PONTE ESTAIADA DEVE SOBREVIVER","O MINEIRAO DEVE SOBREVIVER","O ELEVADOR LACERDA DEVE SOBREVIVER","O MARCO ZERO DEVE SOBREVIVER","O FAROL DO MUCURIPE DEVE SOBREVIVER","O JARDIM BOTANICO DEVE SOBREVIVER","A USINA DO GASOMETRO DEVE SOBREVIVER","O TEATRO AMAZONAS DEVE SOBREVIVER","O VER-O-PESO DEVE SOBREVIVER","O MONUMENTO AS TRES RACAS DEVE SOBREVIVER","A TORRE DO CASTELO DEVE SOBREVIVER","O CONVENTO DA PENHA DEVE SOBREVIVER","A PONTE HERCILIO LUZ DEVE SOBREVIVER","O FORTE DOS REIS MAGOS DEVE SOBREVIVER","O FAROL DO CABO BRANCO DEVE SOBREVIVER","O FAROL DA PONTA VERDE DEVE SOBREVIVER","A PONTE DO IMPERADOR DEVE SOBREVIVER","O PALACIO DOS LEOES DEVE SOBREVIVER","A IGREJA DO ROSARIO DEVE SOBREVIVER","O OBELISCO DEVE SOBREVIVER","A BASILICA DO SANTISSIMO SALVADOR DEVE SOBREVIVER","O MAC DEVE SOBREVIVER","O CONGRESSO NACIONAL DEVE SOBREVIVER"};
+            return objectives[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        int scheduledDivisorForPhase(){
+            switch(waves.wave){
+                case 2:return 5; case 4:return 7; case 6:return 11; case 8:return 13; case 10:return 17;
+                case 12:return 19; case 14:return 23; case 16:return 29; case 18:return 31; default:return 0;
+            }
+        }
+
+        void preparePhase(){
+            lastDivisorAcquired=scheduledDivisorForPhase();
+            if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
+        }
+
+        void startIntermission(){
+            intermission=true;running=false;preWave=false;paused=false;cannonAngle=-45f;
+            audio.setMusicPaused(true);
+        }
+
+        void continueFromShop(){
+            if(!intermission)return;
+            intermission=false;
+            waves.nextWave();
+            beginNextWave();
+        }
+
+        void buySubtractor(){
+            if(inv.money<SHOP_SUBTRACTOR_COST)return;
+            inv.money-=SHOP_SUBTRACTOR_COST;
+            inv.addSubtractor(10);
+            audio.play("bonus_subtrator.wav");
+        }
+
+        void buyBomb(){
+            if(inv.money<SHOP_BOMB_COST)return;
+            inv.money-=SHOP_BOMB_COST;
+            inv.bombZero++;
+            audio.play("bonus_municao.wav");
+        }
+
+        void startBombSequence(){
+            if(inv.bombZero<=0||bombSequence)return;
+            boolean hasTarget=false;
+            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS){hasTarget=true;break;}
+            if(!hasTarget){audio.play("divisao_errada.wav");return;}
+            inv.bombZero--;
+            bombSequence=true;bombSequenceTimer=1.05f;
+            audio.play("bomba_zero.wav");
+            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS){m.targetBlink=true;m.blinkTime=0;}
+        }
+
+        void updateBombSequence(float dt){
+            bombSequenceTimer-=dt;
+            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS)m.blinkTime+=dt;
+            if(bombSequenceTimer>0)return;
+            bombSequence=false;
+            ArrayList<Meteor> targets=new ArrayList<Meteor>();
+            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS)targets.add(m);
+            for(Meteor m:targets){m.targetBlink=false;explode(m,true,false);}
+        }
+
+        void shootBonus(Meteor m){
+            if(m==null||m.dead||pendingBonusTarget!=null)return;
+            pendingBonusTarget=m;m.targetBlink=true;m.blinkTime=0;pendingBonusTimer=shotDuration;
+            aimAndFire(m,Color.YELLOW);
+            audio.play("alvo_trava.wav");
+        }
+
+        void updatePendingBonus(float dt){
+            if(pendingBonusTarget==null)return;
+            pendingBonusTimer-=dt;pendingBonusTarget.blinkTime+=dt;
+            if(pendingBonusTimer<=0){
+                Meteor m=pendingBonusTarget;pendingBonusTarget=null;
+                if(m!=null&&!m.dead){m.targetBlink=false;collectBonus(m);}
+            }
+        }
+
         void update(float dt){
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);return;}
@@ -475,7 +560,7 @@ public class GameV2Activity extends Activity {
 
         void updateMeteors(float dt){
             Iterator<Meteor> it=meteors.iterator();while(it.hasNext()){
-                Meteor m=it.next();if(m.dead){it.remove();continue;}emitMeteorTrail(m,dt);m.y+=m.speed*dt;
+                Meteor m=it.next();if(m.dead){it.remove();continue;}if(m==pendingBonusTarget)continue;emitMeteorTrail(m,dt);m.y+=m.speed*dt;
                 if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){commercial.active=false;commercial=null;audio.play("aviao_comercial_atingido.wav");damageCity(6,m.x,false);burst(m.x,m.y,Color.LTGRAY,18);m.dead=true;continue;}
                 if(m.y>318){if(m.kind==Kind.BONUS)damageCity(3,m.x,false);else damageCity(Math.min(18,4+m.value/18f),m.x,false);m.dead=true;}
             }
@@ -485,16 +570,18 @@ public class GameV2Activity extends Activity {
 
         void damageCity(float amount,float impactX,boolean nuclear){if(inv.shieldSeconds>0&&!nuclear){audio.play("bonus_escudo.wav");return;}cityHealth-=amount;lastImpactX=(int)impactX;audio.play("impacto_cidade.wav");startCityShake(amount,nuclear);if(cityHealth<=0){cityHealth=0;gameOver=true;running=false;audio.play("game_over.wav");saveScore();}}
 
-        void aimAndFire(Meteor m,int color){
-            cannonAngle=(float)Math.toDegrees(Math.atan2(m.y-cannonY,m.x-cannonX));
+        void aimAndFireAt(float tx,float ty,int color){
+            cannonAngle=(float)Math.toDegrees(Math.atan2(ty-cannonY,tx-cannonX));
             double rad=Math.toRadians(cannonAngle);
             float muzzleOffset=12f;
             shotStartX=cannonX+(float)Math.cos(rad)*muzzleOffset;
             shotStartY=cannonY+(float)Math.sin(rad)*muzzleOffset;
             shotColor=color;
-            cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=m.x;shotTargetY=m.y;
+            cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=tx;shotTargetY=ty;
             audio.play("disparo_canhao.wav");
         }
+
+        void aimAndFire(Meteor m,int color){aimAndFireAt(m.x,m.y,color);}
 
         int projectileColorForDivisor(int d){
             switch(d){
@@ -514,7 +601,7 @@ public class GameV2Activity extends Activity {
         }
 
         void hitMeteor(Meteor m){
-            if(m==null||m.dead)return;if(m.kind==Kind.BONUS){collectBonus(m);return;}if(m.kind==Kind.ADD||m.kind==Kind.MULT){openQuiz(m);return;}if(selectedMode==1){useSubtractor(m);return;}if(selectedMode==2){useBomb(m);return;}
+            if(m==null||m.dead)return;if(m.kind==Kind.BONUS){shootBonus(m);return;}if(m.kind==Kind.ADD||m.kind==Kind.MULT){openQuiz(m);return;}if(selectedMode==1){useSubtractor(m);return;}
             int d=inv.selectedDivisor;aimAndFire(m,projectileColorForDivisor(d));if(MeteorMathV2.canDivide(m.value,d)){m.value/=d;audio.play("divisao_correta.wav");burst(m.x,m.y,Color.rgb(100,255,120),10);m.radius=Math.max(11,m.radius*.88f);if(m.value<=1)explode(m,true,false);}else{audio.play("divisao_errada.wav");burst(m.x,m.y,Color.rgb(255,80,60),7);score=Math.max(0,score-2);}
         }
 
@@ -532,7 +619,6 @@ public class GameV2Activity extends Activity {
             if(amount>=m.value){m.value=0;explode(m,true,false);}
             else m.value-=amount;
         }
-        void useBomb(Meteor m){if(inv.bombZero<=0){audio.play("divisao_errada.wav");return;}inv.bombZero--;audio.play("bomba_zero.wav");damageCity(7,400,true);explode(m,true,false);}
         void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
