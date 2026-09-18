@@ -18,7 +18,7 @@ final class PlayerInventory {
     }
 
     boolean unlockDivisor(int p) {
-        if (p < 2 || p > 31) return false;
+        if (p < 2 || p > 17 || !MeteorMathV2.isPrime(p)) return false;
         return divisors.add(p);
     }
 
