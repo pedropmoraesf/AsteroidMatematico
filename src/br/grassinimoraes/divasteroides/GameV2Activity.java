@@ -389,7 +389,7 @@ public class GameV2Activity extends Activity {
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
-            waves.targetThisWave=Math.max(waves.destroyedThisWave+1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
+            waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
             selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
             cityHealth=Math.max(1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
             score=Math.max(0,sp.getInt("score",0));destroyedTotal=Math.max(0,sp.getInt("destroyedTotal",0));
@@ -545,7 +545,7 @@ public class GameV2Activity extends Activity {
                 RectF r=menuButtons[i];r.set(270,top+i*54,530,top+40+i*54);
                 drawMenuButton(c,r,labels[i],i==0);
             }
-            if(!hasSavedGame())drawText(c,"Nenhum jogo salvo",400,226,10,Color.LTGRAY,true);
+            if(!hasSavedGame())drawText(c,"Nenhum jogo salvo",400,424,10,Color.LTGRAY,true);
         }
 
         void drawScores(Canvas c){
