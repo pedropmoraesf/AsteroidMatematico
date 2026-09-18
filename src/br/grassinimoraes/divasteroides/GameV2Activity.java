@@ -269,8 +269,11 @@ public class GameV2Activity extends Activity {
             }
             updateCityFireParticles(dt);updateShield(dt);
             if(gameOver||quizOpen){updateParticles(dt);updateMilitary(dt);return;}
-            spawnTimer-=dt;if(spawnTimer<=0){spawnMeteor();spawnTimer=waves.spawnSeconds()*(.82f+rnd.nextFloat()*.36f);}
-            if(commercial==null&&rnd.nextFloat()<waves.commercialPlaneChancePerSecond()*dt*60f)spawnCommercial();
+            if(!waves.complete()){
+                spawnTimer-=dt;
+                if(spawnTimer<=0){spawnMeteor();spawnTimer=waves.spawnSeconds()*(.82f+rnd.nextFloat()*.36f);}
+                if(commercial==null&&rnd.nextFloat()<waves.commercialPlaneChancePerSecond()*dt*60f)spawnCommercial();
+            }
             updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updateParticles(dt);
             if(waves.complete()&&meteors.isEmpty()&&military==null){
                 audio.play("fase_concluida.wav");
