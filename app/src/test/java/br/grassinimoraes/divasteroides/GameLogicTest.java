@@ -11,7 +11,7 @@ public class GameLogicTest {
         PlayerInventory inv=new PlayerInventory();
         assertTrue(inv.divisors.contains(2));
         assertTrue(inv.divisors.contains(3));
-        assertEquals(2,inv.highestDivisor());
+        assertEquals(3,inv.highestDivisor());
         assertFalse(inv.unlockDivisor(37));
         assertTrue(inv.unlockDivisor(5));
         assertEquals(5,inv.highestDivisor());
