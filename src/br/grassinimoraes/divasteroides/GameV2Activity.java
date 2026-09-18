@@ -171,6 +171,7 @@ public class GameV2Activity extends Activity {
         int selectedDifficulty=0;
         boolean scoreClearedNotice=false;
         float scoreNoticeTimer=0f;
+        float introWhiteFade=0f;
         float logicalW=800,logicalH=480,scaleX=1,scaleY=1;
 
         final float cannonX=400f, cannonY=228f;
@@ -196,6 +197,7 @@ public class GameV2Activity extends Activity {
         GameView(Context c){
             super(c); setFocusable(true); pixel.setAntiAlias(false); pixel.setFilterBitmap(false); tintPaint.setAntiAlias(false);
             audio=new AudioBank(c); loadAssets(); loadAudio();
+            introWhiteFade=GameV2Activity.this.getIntent().getBooleanExtra("fromSplash",false)?.30f:0f;
             audio.playMusic("musica_menu.ogg",.42f);
         }
 
@@ -252,6 +254,7 @@ public class GameV2Activity extends Activity {
             updateCityShake(dt);
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
             if(shotTimer>0)shotTimer=Math.max(0,shotTimer-dt);
+            if(introWhiteFade>0)introWhiteFade=Math.max(0,introWhiteFade-dt);
             if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
             if(waveClear){
                 updateParticles(dt);
@@ -396,7 +399,18 @@ public class GameV2Activity extends Activity {
         void startMilitaryStrike(Meteor target){military=new Plane();military.military=true;military.x=-70;military.y=Math.max(55,target.y-70);military.speed=180;military.target=target;military.strikeTimer=1.15f;audio.play("aviao_militar_passagem.wav");quizMeteor=null;}
         void burst(float x,float y,int color,int n){for(int i=0;i<n;i++){double a=rnd.nextDouble()*Math.PI*2;float s=25+rnd.nextFloat()*70;particles.add(new Particle(x,y,(float)Math.cos(a)*s,(float)Math.sin(a)*s,.35f+rnd.nextFloat()*.45f,color,2+rnd.nextFloat()*3));}}
 
-        @Override protected void onDraw(Canvas c){super.onDraw(c);c.save();c.scale(scaleX,scaleY);if(!running&&!preWave&&!gameOver&&!waveClear)drawMenu(c);else drawGame(c);c.restore();}
+        @Override protected void onDraw(Canvas c){
+            super.onDraw(c);
+            c.save();
+            c.scale(scaleX,scaleY);
+            if(!running&&!preWave&&!gameOver&&!waveClear)drawMenu(c);else drawGame(c);
+            if(introWhiteFade>0){
+                float t=Math.max(0,Math.min(1,introWhiteFade/.30f));
+                p.setColor(Color.argb((int)(255*t),255,255,255));
+                c.drawRect(0,0,800,480,p);
+            }
+            c.restore();
+        }
         void drawMenu(Canvas c){p.setColor(Color.rgb(3,10,25));c.drawRect(0,0,800,480,p);if(menuBg!=null)drawCenterCrop(c,menuBg,new RectF(0,0,800,480),.56f);p.setColor(Color.argb(45,0,8,20));c.drawRect(0,0,800,480,p);if(menuPage==MENU_MAIN)drawMainMenu(c);else if(menuPage==MENU_SCORE)drawScores(c);else drawOptions(c);}
         void drawMainMenu(Canvas c){drawText(c,"ASTEROIDE MATEMATICO",400,72,34,Color.WHITE,true);String[] labels={"INICIAR","VER PONTUACAO","OPCOES","SAIR"};float top=176;for(int i=0;i<labels.length;i++){RectF r=menuButtons[i];r.set(292,top+i*55,508,top+40+i*55);drawMenuButton(c,r,labels[i],i==0);}}
 
