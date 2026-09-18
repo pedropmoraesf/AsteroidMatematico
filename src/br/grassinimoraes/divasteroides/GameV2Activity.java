@@ -156,8 +156,9 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
-        static final int CITY_TILE_SIZE=16, CITY_TILE_COLS=50, CITY_TILE_ROWS=5;
-        static final float CITY_TOP=310f, CITY_BOTTOM=390f;
+        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=75;
+        static final float CITY_TOP=315f, CITY_BOTTOM=390f;
+        static final float TARGET_TILE_MM=1.0f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -176,7 +177,8 @@ public class GameV2Activity extends Activity {
         final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet,planeBombImg;
-        Bitmap cityImg,baseCityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
+        Bitmap cityImg,baseCityImg,cityAtlas,cityRuntime,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
+        Canvas cityRuntimeCanvas;
         Typeface gameFont;
 
         long last=SystemClock.uptimeMillis();
@@ -236,7 +238,10 @@ public class GameV2Activity extends Activity {
 
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
-        int protectedTileStart=0,protectedTileEnd=-1,lastProtectedBonus=0;
+        int lastProtectedBonus=0;
+        int damageCols=154,damageRows=11;
+        float damageCellW=CITY_BITMAP_W/154f,damageCellH=CITY_BITMAP_H/11f;
+        boolean[][] citySolid,cityDestroyed,protectedCells;
 
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
@@ -256,7 +261,9 @@ public class GameV2Activity extends Activity {
             planeMilitary=assetBitmap("graficos/aviao_militar.png"); bombImg=assetBitmap("graficos/bomba0.png");
             planeBombImg=assetBitmap("graficos/bomba_aviao_militar.png");
             targetImg=assetBitmap("graficos/alvo_quiz.png"); aimTargetSheet=assetBitmap("graficos/alvo1.png");
-            baseCityImg=assetBitmap("graficos/cidade_grande.png"); cityImg=baseCityImg; turretSheet=assetBitmap("graficos/torre.png");
+            baseCityImg=assetBitmap("graficos/cidade_grande.png");
+            cityAtlas=assetBitmap("graficos/cidades_brasil_referencia.png");
+            cityImg=baseCityImg; turretSheet=assetBitmap("graficos/torre.png");
             cannonSheet=assetBitmap("graficos/canhao1.png"); meteorSheet=assetBitmap("graficos/meteoro e itens.png");
             projectileSheet=assetBitmap("graficos/projetil.png"); smokeImg=assetBitmap("graficos/fumaca1.png");
             molduraSheet=assetBitmap("graficos/moldura.png");
@@ -280,7 +287,10 @@ public class GameV2Activity extends Activity {
             long now=SystemClock.uptimeMillis();float dt=Math.min(.05f,(now-last)/1000f);last=now;
             update(dt);invalidate();postDelayed(this,16);
         }
-        @Override protected void onSizeChanged(int w,int h,int ow,int oh){scaleX=w/logicalW;scaleY=h/logicalH;}
+        @Override protected void onSizeChanged(int w,int h,int ow,int oh){
+            scaleX=w/logicalW;scaleY=h/logicalH;
+            configurePhysicalDamageGrid();
+        }
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
@@ -292,7 +302,7 @@ public class GameV2Activity extends Activity {
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
-            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;protectedTileStart=0;protectedTileEnd=-1;lastProtectedBonus=0;
+            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
@@ -315,13 +325,13 @@ public class GameV2Activity extends Activity {
         }
 
         String phaseCityName(){
-            String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","BELEM","GOIANIA","CAMPINAS","VITORIA","FLORIANOPOLIS","NATAL","JOAO PESSOA","MACEIO","ARACAJU","SAO LUIS","CUIABA","CAMPO GRANDE","CAMPOS DOS GOYTACAZES","NITEROI","BRASILIA"};
+            String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","CAMPOS DOS GOYTACAZES","BELEM","SAO LUIS","TERESINA","NATAL","JOAO PESSOA","MACEIO","ARACAJU","CUIABA","GOIANIA","VITORIA","FLORIANOPOLIS","CAMPO GRANDE","PALMAS","BRASILIA"};
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
         String phaseObjective(){
-            String[] objectives={"","A CIDADE DEVE SOBREVIVER","O CRISTO REDENTOR DEVE SOBREVIVER","A PONTE ESTAIADA DEVE SOBREVIVER","O MINEIRAO DEVE SOBREVIVER","O ELEVADOR LACERDA DEVE SOBREVIVER","O MARCO ZERO DEVE SOBREVIVER","O FAROL DO MUCURIPE DEVE SOBREVIVER","O JARDIM BOTANICO DEVE SOBREVIVER","A USINA DO GASOMETRO DEVE SOBREVIVER","O TEATRO AMAZONAS DEVE SOBREVIVER","O VER-O-PESO DEVE SOBREVIVER","O MONUMENTO AS TRES RACAS DEVE SOBREVIVER","A TORRE DO CASTELO DEVE SOBREVIVER","O CONVENTO DA PENHA DEVE SOBREVIVER","A PONTE HERCILIO LUZ DEVE SOBREVIVER","O FORTE DOS REIS MAGOS DEVE SOBREVIVER","O FAROL DO CABO BRANCO DEVE SOBREVIVER","O FAROL DA PONTA VERDE DEVE SOBREVIVER","A PONTE DO IMPERADOR DEVE SOBREVIVER","O PALACIO DOS LEOES DEVE SOBREVIVER","A IGREJA DO ROSARIO DEVE SOBREVIVER","O OBELISCO DEVE SOBREVIVER","A BASILICA DO SANTISSIMO SALVADOR DEVE SOBREVIVER","O MAC DEVE SOBREVIVER","O CONGRESSO NACIONAL DEVE SOBREVIVER"};
-            return objectives[Math.max(1,Math.min(25,waves.wave))];
+            if(waves.wave<=1)return "A CIDADE DEVE SOBREVIVER";
+            return "O "+protectedSiteName()+" DEVE SOBREVIVER";
         }
 
         int scheduledDivisorForPhase(){
@@ -337,12 +347,13 @@ public class GameV2Activity extends Activity {
 
         String protectedSiteName(){
             String[] names={"","",
-                    "CRISTO REDENTOR","PONTE ESTAIADA","MINEIRAO","ELEVADOR LACERDA","MARCO ZERO",
-                    "FAROL DO MUCURIPE","JARDIM BOTANICO","USINA DO GASOMETRO","TEATRO AMAZONAS",
-                    "VER-O-PESO","MONUMENTO AS TRES RACAS","TORRE DO CASTELO","CONVENTO DA PENHA",
-                    "PONTE HERCILIO LUZ","FORTE DOS REIS MAGOS","FAROL DO CABO BRANCO",
-                    "FAROL DA PONTA VERDE","PONTE DO IMPERADOR","PALACIO DOS LEOES","IGREJA DO ROSARIO",
-                    "OBELISCO","BASILICA DO SANTISSIMO SALVADOR","MAC","CONGRESSO NACIONAL"};
+                    "CRISTO REDENTOR","PONTE ESTAIADA","PAMPULHA","ELEVADOR LACERDA","PONTE MAURICIO DE NASSAU",
+                    "BEIRA-MAR","JARDIM BOTANICO","PONTE DO GUAIBA","TEATRO AMAZONAS",
+                    "BASILICA DO SANTISSIMO SALVADOR","VER-O-PESO","CENTRO HISTORICO","PONTE ESTAIADA",
+                    "FORTE DOS REIS MAGOS","FAROL DO CABO BRANCO","FAROL DE PONTA VERDE",
+                    "PONTE ARACAJU-BARRA","IGREJA DO ROSARIO","MONUMENTO AS TRES RACAS",
+                    "CONVENTO DA PENHA","PONTE HERCILIO LUZ","OBELISCO","PALACIO ARAGUAIA",
+                    "CONGRESSO NACIONAL"};
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
