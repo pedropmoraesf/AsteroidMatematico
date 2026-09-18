@@ -1,0 +1,31 @@
+name: Gerar MIDIs das ondas
+
+on:
+  push:
+    branches: [ musicas-ondas-02-25 ]
+    paths:
+      - 'tools/generate_wave_midis.py'
+      - '.github/workflows/generate-wave-mid-artifact.yml'
+  workflow_dispatch:
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Gerar 24 ondas e vitoria
+        run: python tools/generate_wave_midis.py
+      - name: Conferir pacote
+        run: |
+          unzip -l asteroide_matematico_ondas_02_25_mid.zip
+          test -f generated_music/mid/onda_02.mid
+          test -f generated_music/mid/onda_25.mid
+          test -f generated_music/mid/vitoria_final.mid
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asteroide_matematico_ondas_02_25_mid
+          path: asteroide_matematico_ondas_02_25_mid.zip
+          if-no-files-found: error
