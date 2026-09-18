@@ -1,0 +1,21 @@
+ASTEROIDE MATEMATICO - 24 MUSICAS ORIGINAIS
+
+Arquivos: onda_01.mid a onda_24.mid
+Linha musical: heroica / defesa urbana / marcha moderna.
+As ondas ficam gradualmente mais intensas.
+
+Canais GM:
+1  Guitarra Solo - Distortion Guitar
+2  Guitarra Base L - Overdriven Guitar
+3  Guitarra Base R - Overdriven Guitar
+4  Baixo - Electric Bass (finger)
+5  Metais - Brass Section
+6  Cordas - String Ensemble 1
+10 Bateria GM
+
+Para converter tudo:
+1. Edite renderizar_24_ondas.bat.
+2. Ajuste a variavel SF2 para o caminho do Timbres Of Heaven.
+3. FluidSynth e FFmpeg devem estar no PATH.
+4. Execute o BAT.
+5. Os OGGs serao criados em ogg/.
