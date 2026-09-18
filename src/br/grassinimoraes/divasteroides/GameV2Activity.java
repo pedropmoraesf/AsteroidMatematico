@@ -516,6 +516,92 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        void updateUiParticles(float dt){
+            Iterator<Particle> it=uiParticles.iterator();
+            while(it.hasNext()){
+                Particle q=it.next();q.life-=dt;
+                if(q.life<=0){it.remove();continue;}
+                q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=28f*dt;
+            }
+        }
+
+        void updateProjectileEffects(float dt){
+            if(shotTimer<=0)return;
+            projectileParticleTimer-=dt;
+            if(projectileParticleTimer>0)return;
+            projectileParticleTimer=shotWasCharged?.012f:.022f;
+            float t=1f-shotTimer/shotDuration;t=Math.max(0,Math.min(1,t));
+            float x=shotStartX+(shotTargetX-shotStartX)*t;
+            float y=shotStartY+(shotTargetY-shotStartY)*t;
+            float dx=shotTargetX-shotStartX,dy=shotTargetY-shotStartY;
+            float len=(float)Math.sqrt(dx*dx+dy*dy);if(len<1)len=1;
+            float ux=dx/len,uy=dy/len;
+            int count=shotWasCharged?5:2;
+            for(int i=0;i<count;i++){
+                float side=-5+rnd.nextFloat()*10;
+                float px=x-ux*(4+rnd.nextFloat()*10)-uy*side;
+                float py=y-uy*(4+rnd.nextFloat()*10)+ux*side;
+                int col=shotWasCharged?(rnd.nextBoolean()?Color.CYAN:Color.WHITE):Color.rgb(185,215,235);
+                particles.add(new Particle(px,py,-ux*(20+rnd.nextFloat()*25)-uy*side*2,-uy*(20+rnd.nextFloat()*25)+ux*side*2,.16f+rnd.nextFloat()*.22f,col,1.0f+rnd.nextFloat()*2.1f));
+            }
+            if(shotWasCharged){
+                double spin=SystemClock.uptimeMillis()/45.0;
+                for(int i=0;i<3;i++){
+                    double a=spin+i*Math.PI*2/3.0;
+                    float rr=8+rnd.nextFloat()*4;
+                    particles.add(new Particle(x+(float)Math.cos(a)*rr,y+(float)Math.sin(a)*rr,0,0,.10f,Color.CYAN,1.5f+rnd.nextFloat()*1.8f));
+                }
+            }
+        }
+
+        boolean protectedSiteActive(){return waves.wave>1&&protectedTileEnd>=protectedTileStart;}
+
+        boolean protectedTileHit(float x){
+            if(!protectedSiteActive()||protectedSiteDestroyed)return false;
+            int col=Math.max(0,Math.min(CITY_TILE_COLS-1,(int)(x/CITY_TILE_W)));
+            return col>=protectedTileStart&&col<=protectedTileEnd;
+        }
+
+        RectF protectedTileRect(){
+            return new RectF(protectedTileStart*CITY_TILE_W,CITY_TOP,Math.min(800,(protectedTileEnd+1)*CITY_TILE_W),CITY_BOTTOM);
+        }
+
+        void damageProtectedSite(float amount,float x){
+            if(!protectedTileHit(x))return;
+            protectedSiteHealth=Math.max(0f,protectedSiteHealth-Math.max(8f,amount*1.8f));
+            RectF r=protectedTileRect();
+            burst(Math.max(r.left,Math.min(r.right,x)),CITY_TOP+22,Color.LTGRAY,10);
+            if(protectedSiteHealth<=0&&!protectedSiteDestroyed)destroyProtectedSite();
+        }
+
+        void destroyProtectedSite(){
+            protectedSiteDestroyed=true;protectedSiteHealth=0;lastProtectedBonus=0;
+            RectF r=protectedTileRect();
+            float cx=r.centerX(),cy=CITY_TOP+30;
+            int[] concrete={Color.rgb(185,185,175),Color.rgb(130,130,125),Color.rgb(95,95,92),Color.rgb(215,205,185)};
+            for(int i=0;i<65;i++){
+                double a=rnd.nextDouble()*Math.PI*2;
+                float sp=30+rnd.nextFloat()*115;
+                particles.add(new Particle(cx,cy,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp-.25f*sp,.45f+rnd.nextFloat()*.75f,concrete[rnd.nextInt(concrete.length)],2f+rnd.nextFloat()*4f));
+            }
+            startCityShake(18f,false);
+        }
+
+        void updateProtectedSiteFire(float dt){
+            if(!protectedSiteDestroyed)return;
+            protectedFireTimer-=dt;
+            if(protectedFireTimer>0)return;
+            protectedFireTimer=.025f+.025f*rnd.nextFloat();
+            RectF r=protectedTileRect();
+            int n=3+rnd.nextInt(3);
+            for(int i=0;i<n;i++){
+                float x=r.left+rnd.nextFloat()*Math.max(1,r.width());
+                float y=CITY_TOP+18+rnd.nextFloat()*35;
+                int col=rnd.nextBoolean()?Color.rgb(255,80,15):Color.rgb(255,190,30);
+                particles.add(new Particle(x,y,-15+rnd.nextFloat()*30,-45-rnd.nextFloat()*65,.35f+rnd.nextFloat()*.38f,col,2f+rnd.nextFloat()*3.5f));
+            }
+        }
+
         void update(float dt){
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);return;}
@@ -525,10 +611,14 @@ public class GameV2Activity extends Activity {
             updateCityShake(dt);
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
             else if(shotTimer<=0&&!aiming)cannonAngle=-45f;
-            if(shotTimer>0)shotTimer=Math.max(0,shotTimer-dt);
+            if(shotTimer>0){updateProjectileEffects(dt);shotTimer=Math.max(0,shotTimer-dt);}
+            else shotWasCharged=false;
             if(!aiming&&aimTargetTimer>0)aimTargetTimer=Math.max(0,aimTargetTimer-dt);
+            if(hudChargeFlashTimer>0)hudChargeFlashTimer=Math.max(0,hudChargeFlashTimer-dt);
+            updateUiParticles(dt);
             updateAimCharge(dt);
             updatePendingBonus(dt);
+            updateProtectedSiteFire(dt);
             if(introWhiteFade>0)introWhiteFade=Math.max(0,introWhiteFade-dt);
             if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
             if(waveClear){
@@ -561,12 +651,17 @@ public class GameV2Activity extends Activity {
             updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updateParticles(dt);
             if(waves.complete()&&meteors.isEmpty()&&military==null){
                 audio.play("fase_concluida.wav");
+                if(protectedSiteActive()&&!protectedSiteDestroyed&&!protectedSiteBonusAwarded){
+                    lastProtectedBonus=250+waves.wave*10;
+                    score+=lastProtectedBonus;
+                    protectedSiteBonusAwarded=true;
+                }else lastProtectedBonus=0;
                 if(cityHealth<100f)audio.play("reconstrucao_cidade.wav");
                 cityHealth=100f;
                 running=false;
                 completedWave=waves.wave;
                 waveClear=true;
-                waveClearTimer=2.2f;
+                waveClearTimer=2.6f;
             }
         }
 
@@ -749,7 +844,15 @@ public class GameV2Activity extends Activity {
             Iterator<Meteor> it=meteors.iterator();while(it.hasNext()){
                 Meteor m=it.next();if(m.dead){it.remove();continue;}if(m==pendingBonusTarget)continue;emitMeteorTrail(m,dt);m.y+=m.speed*dt;
                 if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){commercial.active=false;commercial=null;audio.play("aviao_comercial_atingido.wav");damageCity(6,m.x,false);burst(m.x,m.y,Color.LTGRAY,18);m.dead=true;continue;}
-                if(m.y>318){if(m.kind==Kind.BONUS)damageCity(3,m.x,false);else damageCity(Math.min(18,4+m.value/18f),m.x,false);m.dead=true;}
+                if(m.y>318){
+                    if(m.kind==Kind.BONUS)damageCity(3,m.x,false);
+                    else{
+                        float impact=Math.min(18,4+m.value/18f);
+                        damageProtectedSite(impact,m.x);
+                        damageCity(impact,m.x,false);
+                    }
+                    m.dead=true;
+                }
             }
         }
 
@@ -765,6 +868,9 @@ public class GameV2Activity extends Activity {
             shotStartX=cannonX+(float)Math.cos(rad)*muzzleOffset;
             shotStartY=cy+(float)Math.sin(rad)*muzzleOffset;
             shotProjectileIndex=Math.max(0,Math.min(7,projectileIndex));
+            shotWasCharged=aimCharged&&selectedMode==0;
+            shotProjectileValue=chargedProjectileValue;
+            projectileParticleTimer=0f;
             cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=aimX;shotTargetY=aimY;
             audio.play("disparo_canhao.wav");
         }
@@ -788,11 +894,7 @@ public class GameV2Activity extends Activity {
             }
         }
 
-        void applySubtractorShot(Meteor m){
-            int amount=inv.subtractorValue;
-            if(amount<1||amount>inv.subtractorCharge||!inv.spendSubtractor(amount)){
-                audio.play("divisao_errada.wav");return;
-            }
+        void applySubtractorShot(Meteor m,int amount){
             audio.play("subtrator_uso.wav");
             burst(m.x,m.y,Color.CYAN,10);
             if(amount>=m.value){m.value=0;explode(m,true,false);}
@@ -808,13 +910,20 @@ public class GameV2Activity extends Activity {
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
             if(hit.kind==Kind.ADD||hit.kind==Kind.MULT){openQuiz(hit);return;}
-            if(selectedMode==1){applySubtractorShot(hit);return;}
+            if(selectedMode==1){applySubtractorShot(hit,projectileValue);return;}
             applyDivisorShot(hit,projectileValue);
         }
 
         void releaseAimedShot(){
             updateAimCharge(0f);
             int value=selectedMode==1?Math.max(1,inv.subtractorValue):currentChargedDivisor();
+            if(selectedMode==1){
+                if(value<1||value>inv.subtractorCharge||!inv.spendSubtractor(value)){
+                    audio.play("divisao_errada.wav");
+                    aiming=false;aimTargetTimer=.20f;aimCharge=0f;aimCharged=false;chargeParticleTimer=0f;
+                    return;
+                }
+            }
             int projectileIndex=aimTargetIndex;
             chargedProjectileValue=value;
             fireProjectileAt(aimX,aimY,projectileIndex);
@@ -822,6 +931,7 @@ public class GameV2Activity extends Activity {
             aiming=false;
             aimTargetTimer=.34f;
             aimCharge=0f;
+            aimCharged=false;
             chargeParticleTimer=0f;
         }
 
