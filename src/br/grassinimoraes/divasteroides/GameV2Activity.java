@@ -267,14 +267,16 @@ public class GameV2Activity extends Activity {
 
         void resetGame(){
             meteors.clear();particles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
-            commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-90;cannonAnim=0;shotTimer=0;
+            commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;
+            preparePhase();
             playWaveMusic();
             audio.playLong("sirene_80bpm_10.wav");
         }
@@ -285,17 +287,22 @@ public class GameV2Activity extends Activity {
         }
 
         void beginNextWave(){
-            running=false;preWave=true;paused=false;waveClear=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;
+            running=false;preWave=true;paused=false;waveClear=false;intermission=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;cannonAngle=-45f;
+            preparePhase();
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
 
         void update(float dt){
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);return;}
+            if(intermission){updateParticles(dt);return;}
+            if(bombSequence){updateBombSequence(dt);updateParticles(dt);return;}
             if(paused)return;
             updateCityShake(dt);
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
+            else if(shotTimer<=0)cannonAngle=-45f;
             if(shotTimer>0)shotTimer=Math.max(0,shotTimer-dt);
+            updatePendingBonus(dt);
             if(introWhiteFade>0)introWhiteFade=Math.max(0,introWhiteFade-dt);
             if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
             if(waveClear){
@@ -304,7 +311,7 @@ public class GameV2Activity extends Activity {
                 if(waveClearTimer<=0){
                     waveClear=false;
                     if(completedWave>=WaveManager.MAX_WAVE)startVictory();
-                    else{waves.nextWave();beginNextWave();}
+                    else startIntermission();
                 }
                 return;
             }
