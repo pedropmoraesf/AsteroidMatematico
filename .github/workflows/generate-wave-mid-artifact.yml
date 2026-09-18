@@ -27,5 +27,5 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: asteroide_matematico_ondas_02_25_mid
-          path: asteroide_matematico_ondas_02_25_mid.zip
+          path: generated_music/
           if-no-files-found: error
