@@ -23,4 +23,4 @@ jobs:
         with:
           gradle-version: '7.5.1'
 
-      - run: gradle assembleDebug --stacktrace
+      - run: gradle testDebugUnitTest assembleDebug --stacktrace
