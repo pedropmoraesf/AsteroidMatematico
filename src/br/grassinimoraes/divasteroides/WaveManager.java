@@ -4,7 +4,7 @@ package br.grassinimoraes.divasteroides;
 final class WaveManager {
     int wave = 1;
     int destroyedThisWave = 0;
-    int targetThisWave = 8;
+    int targetThisWave = 5;
     int difficulty = 0;
 
     int maxMeteorValue() {
@@ -47,6 +47,6 @@ final class WaveManager {
     void nextWave() {
         wave++;
         destroyedThisWave=0;
-        targetThisWave = Math.min(22, 7 + wave);
+        targetThisWave = Math.min(12, 4 + wave);
     }
 }
