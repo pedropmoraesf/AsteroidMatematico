@@ -156,8 +156,9 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
-        static final int CITY_TILE_SIZE=16, CITY_TILE_COLS=50, CITY_TILE_ROWS=5;
-        static final float CITY_TOP=310f, CITY_BOTTOM=390f;
+        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=75;
+        static final float CITY_TOP=315f, CITY_BOTTOM=390f;
+        static final float TARGET_TILE_MM=1.0f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -176,7 +177,8 @@ public class GameV2Activity extends Activity {
         final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet,planeBombImg;
-        Bitmap cityImg,baseCityImg,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
+        Bitmap cityImg,baseCityImg,cityAtlas,cityRuntime,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
+        Canvas cityRuntimeCanvas;
         Typeface gameFont;
 
         long last=SystemClock.uptimeMillis();
@@ -236,7 +238,10 @@ public class GameV2Activity extends Activity {
 
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
-        int protectedTileStart=0,protectedTileEnd=-1,lastProtectedBonus=0;
+        int lastProtectedBonus=0;
+        int damageCols=154,damageRows=11;
+        float damageCellW=CITY_BITMAP_W/154f,damageCellH=CITY_BITMAP_H/11f;
+        boolean[][] citySolid,cityDestroyed,protectedCells;
 
         boolean cityShaking=false;
         float cityShakeT=0f, cityShakeT2=0f, cityShakeAlpha=0f, cityShakeGamma=0f, cityShakeOffset=0f;
@@ -256,7 +261,9 @@ public class GameV2Activity extends Activity {
             planeMilitary=assetBitmap("graficos/aviao_militar.png"); bombImg=assetBitmap("graficos/bomba0.png");
             planeBombImg=assetBitmap("graficos/bomba_aviao_militar.png");
             targetImg=assetBitmap("graficos/alvo_quiz.png"); aimTargetSheet=assetBitmap("graficos/alvo1.png");
-            baseCityImg=assetBitmap("graficos/cidade_grande.png"); cityImg=baseCityImg; turretSheet=assetBitmap("graficos/torre.png");
+            baseCityImg=assetBitmap("graficos/cidade_grande.png");
+            cityAtlas=assetBitmap("graficos/cidades_brasil_referencia.png");
+            cityImg=baseCityImg; turretSheet=assetBitmap("graficos/torre.png");
             cannonSheet=assetBitmap("graficos/canhao1.png"); meteorSheet=assetBitmap("graficos/meteoro e itens.png");
             projectileSheet=assetBitmap("graficos/projetil.png"); smokeImg=assetBitmap("graficos/fumaca1.png");
             molduraSheet=assetBitmap("graficos/moldura.png");
@@ -280,7 +287,10 @@ public class GameV2Activity extends Activity {
             long now=SystemClock.uptimeMillis();float dt=Math.min(.05f,(now-last)/1000f);last=now;
             update(dt);invalidate();postDelayed(this,16);
         }
-        @Override protected void onSizeChanged(int w,int h,int ow,int oh){scaleX=w/logicalW;scaleY=h/logicalH;}
+        @Override protected void onSizeChanged(int w,int h,int ow,int oh){
+            scaleX=w/logicalW;scaleY=h/logicalH;
+            configurePhysicalDamageGrid();
+        }
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
@@ -292,7 +302,7 @@ public class GameV2Activity extends Activity {
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
-            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;protectedTileStart=0;protectedTileEnd=-1;lastProtectedBonus=0;
+            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
@@ -315,13 +325,13 @@ public class GameV2Activity extends Activity {
         }
 
         String phaseCityName(){
-            String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","BELEM","GOIANIA","CAMPINAS","VITORIA","FLORIANOPOLIS","NATAL","JOAO PESSOA","MACEIO","ARACAJU","SAO LUIS","CUIABA","CAMPO GRANDE","CAMPOS DOS GOYTACAZES","NITEROI","BRASILIA"};
+            String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","CAMPOS DOS GOYTACAZES","BELEM","SAO LUIS","TERESINA","NATAL","JOAO PESSOA","MACEIO","ARACAJU","CUIABA","GOIANIA","VITORIA","FLORIANOPOLIS","CAMPO GRANDE","PALMAS","BRASILIA"};
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
         String phaseObjective(){
-            String[] objectives={"","A CIDADE DEVE SOBREVIVER","O CRISTO REDENTOR DEVE SOBREVIVER","A PONTE ESTAIADA DEVE SOBREVIVER","O MINEIRAO DEVE SOBREVIVER","O ELEVADOR LACERDA DEVE SOBREVIVER","O MARCO ZERO DEVE SOBREVIVER","O FAROL DO MUCURIPE DEVE SOBREVIVER","O JARDIM BOTANICO DEVE SOBREVIVER","A USINA DO GASOMETRO DEVE SOBREVIVER","O TEATRO AMAZONAS DEVE SOBREVIVER","O VER-O-PESO DEVE SOBREVIVER","O MONUMENTO AS TRES RACAS DEVE SOBREVIVER","A TORRE DO CASTELO DEVE SOBREVIVER","O CONVENTO DA PENHA DEVE SOBREVIVER","A PONTE HERCILIO LUZ DEVE SOBREVIVER","O FORTE DOS REIS MAGOS DEVE SOBREVIVER","O FAROL DO CABO BRANCO DEVE SOBREVIVER","O FAROL DA PONTA VERDE DEVE SOBREVIVER","A PONTE DO IMPERADOR DEVE SOBREVIVER","O PALACIO DOS LEOES DEVE SOBREVIVER","A IGREJA DO ROSARIO DEVE SOBREVIVER","O OBELISCO DEVE SOBREVIVER","A BASILICA DO SANTISSIMO SALVADOR DEVE SOBREVIVER","O MAC DEVE SOBREVIVER","O CONGRESSO NACIONAL DEVE SOBREVIVER"};
-            return objectives[Math.max(1,Math.min(25,waves.wave))];
+            if(waves.wave<=1)return "A CIDADE DEVE SOBREVIVER";
+            return "O "+protectedSiteName()+" DEVE SOBREVIVER";
         }
 
         int scheduledDivisorForPhase(){
@@ -337,39 +347,157 @@ public class GameV2Activity extends Activity {
 
         String protectedSiteName(){
             String[] names={"","",
-                    "CRISTO REDENTOR","PONTE ESTAIADA","MINEIRAO","ELEVADOR LACERDA","MARCO ZERO",
-                    "FAROL DO MUCURIPE","JARDIM BOTANICO","USINA DO GASOMETRO","TEATRO AMAZONAS",
-                    "VER-O-PESO","MONUMENTO AS TRES RACAS","TORRE DO CASTELO","CONVENTO DA PENHA",
-                    "PONTE HERCILIO LUZ","FORTE DOS REIS MAGOS","FAROL DO CABO BRANCO",
-                    "FAROL DA PONTA VERDE","PONTE DO IMPERADOR","PALACIO DOS LEOES","IGREJA DO ROSARIO",
-                    "OBELISCO","BASILICA DO SANTISSIMO SALVADOR","MAC","CONGRESSO NACIONAL"};
+                    "CRISTO REDENTOR","PONTE ESTAIADA","PAMPULHA","ELEVADOR LACERDA","PONTE MAURICIO DE NASSAU",
+                    "BEIRA-MAR","JARDIM BOTANICO","PONTE DO GUAIBA","TEATRO AMAZONAS",
+                    "BASILICA DO SANTISSIMO SALVADOR","VER-O-PESO","CENTRO HISTORICO","PONTE ESTAIADA",
+                    "FORTE DOS REIS MAGOS","FAROL DO CABO BRANCO","FAROL DE PONTA VERDE",
+                    "PONTE ARACAJU-BARRA","IGREJA DO ROSARIO","MONUMENTO AS TRES RACAS",
+                    "CONVENTO DA PENHA","PONTE HERCILIO LUZ","OBELISCO","PALACIO ARAGUAIA",
+                    "CONGRESSO NACIONAL"};
             return names[Math.max(1,Math.min(25,waves.wave))];
         }
 
-        int protectedTileCenterForPhase(){
-            int[] centers={0,0,20,30,22,20,24,38,20,30,22,24,28,18,40,30,24,40,42,28,26,20,24,42,34,26};
-            return centers[Math.max(1,Math.min(25,waves.wave))];
+        float protectedCenterFractionForPhase(){
+            float[] v={0f,0f,.43f,.61f,.44f,.44f,.58f,.42f,.45f,.70f,.47f,.87f,.45f,.75f,.42f,.55f,.88f,.85f,.56f,.43f,.60f,.68f,.58f,.57f,.60f,.62f};
+            return v[Math.max(1,Math.min(25,waves.wave))];
         }
 
-        void configureProtectedTiles(){
-            if(waves.wave<=1){protectedTileStart=0;protectedTileEnd=-1;return;}
-            int center=protectedTileCenterForPhase();
-            int half=(waves.wave==2||waves.wave==15||waves.wave==25)?2:1;
-            protectedTileStart=Math.max(0,center-half);
-            protectedTileEnd=Math.min(CITY_TILE_COLS-1,center+half);
+        float protectedWidthFractionForPhase(){
+            float[] v={0f,0f,.10f,.16f,.12f,.14f,.20f,.18f,.12f,.23f,.12f,.10f,.14f,.18f,.17f,.20f,.10f,.12f,.20f,.12f,.12f,.15f,.25f,.13f,.18f,.22f};
+            return v[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        void configurePhysicalDamageGrid(){
+            android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+            float xdpi=(dm.xdpi>100f&&dm.xdpi<1000f)?dm.xdpi:385f;
+            float ydpi=(dm.ydpi>100f&&dm.ydpi<1000f)?dm.ydpi:385f;
+            float pxPerMmX=xdpi/25.4f;
+            float pxPerMmY=ydpi/25.4f;
+            float physicalW=CITY_BITMAP_W*Math.max(.01f,scaleX);
+            float physicalH=CITY_BITMAP_H*Math.max(.01f,scaleY);
+            damageCols=Math.max(72,Math.min(256,Math.round(physicalW/(pxPerMmX*TARGET_TILE_MM))));
+            damageRows=Math.max(7,Math.min(48,Math.round(physicalH/(pxPerMmY*TARGET_TILE_MM))));
+            damageCellW=CITY_BITMAP_W/(float)damageCols;
+            damageCellH=CITY_BITMAP_H/(float)damageRows;
+        }
+
+        Rect atlasSourceRectForPhase(int phase){
+            int idx=Math.max(0,Math.min(23,phase-2));
+            boolean right=idx>=12;
+            int row=idx%12;
+            int[] leftTop={37,120,206,308,399,490,580,662,752,841,911,989};
+            int[] leftBottom={92,182,272,360,447,539,630,718,805,884,960,1024};
+            int[] rightTop={39,127,216,307,396,477,574,655,741,833,906,980};
+            int[] rightBottom={92,179,269,357,447,535,626,713,796,878,949,1024};
+            int refLeft=right?788:8;
+            int refRight=right?1527:747;
+            int refTop=right?rightTop[row]:leftTop[row];
+            int refBottom=right?rightBottom[row]:leftBottom[row];
+            if(cityAtlas==null)return new Rect(0,0,1,1);
+            float sx=cityAtlas.getWidth()/1536f;
+            float sy=cityAtlas.getHeight()/1024f;
+            int l=Math.max(0,Math.round(refLeft*sx));
+            int r=Math.min(cityAtlas.getWidth(),Math.round(refRight*sx));
+            int t=Math.max(0,Math.round(refTop*sy));
+            int b=Math.min(cityAtlas.getHeight(),Math.round(refBottom*sy));
+            return new Rect(l,t,Math.max(l+1,r),Math.max(t+1,b));
+        }
+
+        void clearAtlasBackground(Bitmap b){
+            if(b==null)return;
+            int w=b.getWidth(),h=b.getHeight();
+            int[] src=new int[w*h];
+            int[] out=new int[w*h];
+            b.getPixels(src,0,w,0,0,w,h);
+            for(int y=0;y<h;y++){
+                for(int x=0;x<w;x++){
+                    int i=y*w+x;
+                    int c=src[i];
+                    int rr=(c>>16)&255,gg=(c>>8)&255,bb=c&255;
+                    boolean black=rr<8&&gg<8&&bb<8;
+                    if(!black){out[i]=c;continue;}
+                    boolean touchesArt=false;
+                    for(int yy=Math.max(0,y-1);yy<=Math.min(h-1,y+1)&&!touchesArt;yy++){
+                        for(int xx=Math.max(0,x-1);xx<=Math.min(w-1,x+1);xx++){
+                            int n=src[yy*w+xx];
+                            int nr=(n>>16)&255,ng=(n>>8)&255,nb=n&255;
+                            if(nr>=12||ng>=12||nb>=12){touchesArt=true;break;}
+                        }
+                    }
+                    out[i]=touchesArt?Color.BLACK:Color.TRANSPARENT;
+                }
+            }
+            b.setPixels(out,0,w,0,0,w,h);
+        }
+
+        void buildRuntimeCity(Bitmap source,Rect src,boolean atlasSource){
+            cityRuntime=Bitmap.createBitmap(CITY_BITMAP_W,CITY_BITMAP_H,Bitmap.Config.ARGB_8888);
+            cityRuntimeCanvas=new Canvas(cityRuntime);
+            cityRuntimeCanvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR);
+            if(source!=null){
+                Rect sourceRect=src!=null?src:new Rect(0,0,source.getWidth(),source.getHeight());
+                cityRuntimeCanvas.drawBitmap(source,sourceRect,new Rect(0,0,CITY_BITMAP_W,CITY_BITMAP_H),pixel);
+                if(atlasSource)clearAtlasBackground(cityRuntime);
+            }
+            cityImg=cityRuntime;
         }
 
         void loadCityForPhase(){
-            if(waves.wave<=1){cityImg=baseCityImg;return;}
-            Bitmap phase=assetBitmap(String.format(java.util.Locale.US,"graficos/cidades/cidade_%02d.png",waves.wave));
-            cityImg=phase!=null?phase:baseCityImg;
+            if(waves.wave<=1){
+                buildRuntimeCity(baseCityImg,null,false);
+            }else if(cityAtlas!=null){
+                buildRuntimeCity(cityAtlas,atlasSourceRectForPhase(waves.wave),true);
+            }else{
+                buildRuntimeCity(baseCityImg,null,false);
+            }
+        }
+
+        void initializeDamageGrid(){
+            configurePhysicalDamageGrid();
+            citySolid=new boolean[damageRows][damageCols];
+            cityDestroyed=new boolean[damageRows][damageCols];
+            protectedCells=new boolean[damageRows][damageCols];
+            if(cityRuntime==null)return;
+            int[] pixels=new int[CITY_BITMAP_W*CITY_BITMAP_H];
+            cityRuntime.getPixels(pixels,0,CITY_BITMAP_W,0,0,CITY_BITMAP_W,CITY_BITMAP_H);
+            for(int row=0;row<damageRows;row++){
+                int py0=Math.max(0,(int)Math.floor(row*damageCellH));
+                int py1=Math.min(CITY_BITMAP_H,(int)Math.ceil((row+1)*damageCellH));
+                for(int col=0;col<damageCols;col++){
+                    int px0=Math.max(0,(int)Math.floor(col*damageCellW));
+                    int px1=Math.min(CITY_BITMAP_W,(int)Math.ceil((col+1)*damageCellW));
+                    int visible=0;
+                    for(int py=py0;py<py1&&visible<2;py++){
+                        for(int px=px0;px<px1;px++){
+                            if(((pixels[py*CITY_BITMAP_W+px]>>>24)&255)>20){visible++;if(visible>=2)break;}
+                        }
+                    }
+                    citySolid[row][col]=visible>0;
+                }
+            }
+            configureProtectedCells();
+        }
+
+        void configureProtectedCells(){
+            if(protectedCells==null)return;
+            for(int r=0;r<damageRows;r++)java.util.Arrays.fill(protectedCells[r],false);
+            if(waves.wave<=1)return;
+            float center=protectedCenterFractionForPhase();
+            float width=protectedWidthFractionForPhase();
+            int c0=Math.max(0,(int)Math.floor((center-width*.5f)*damageCols));
+            int c1=Math.min(damageCols-1,(int)Math.ceil((center+width*.5f)*damageCols));
+            for(int r=0;r<damageRows;r++){
+                for(int c=c0;c<=c1;c++){
+                    if(citySolid!=null&&citySolid[r][c])protectedCells[r][c]=true;
+                }
+            }
         }
 
         void preparePhase(){
             lastDivisorAcquired=scheduledDivisorForPhase();
             if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
             loadCityForPhase();
-            configureProtectedTiles();
+            initializeDamageGrid();
             protectedSiteHealth=100f;
             protectedSiteDestroyed=false;
             protectedSiteBonusAwarded=false;
@@ -554,52 +682,131 @@ public class GameV2Activity extends Activity {
             }
         }
 
-        boolean protectedSiteActive(){return waves.wave>1&&protectedTileEnd>=protectedTileStart;}
-
-        boolean protectedTileHit(float x){
-            if(!protectedSiteActive()||protectedSiteDestroyed)return false;
-            int col=Math.max(0,Math.min(CITY_TILE_COLS-1,(int)(x/CITY_TILE_SIZE)));
-            return col>=protectedTileStart&&col<=protectedTileEnd;
+        boolean protectedSiteActive(){
+            if(waves.wave<=1||protectedCells==null)return false;
+            for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++)if(protectedCells[r][c])return true;
+            return false;
         }
 
-        RectF protectedTileRect(){
-            return new RectF(protectedTileStart*CITY_TILE_SIZE,CITY_TOP,Math.min(800,(protectedTileEnd+1)*CITY_TILE_SIZE),CITY_BOTTOM);
+        RectF cellWorldRect(int row,int col){
+            float l=col*damageCellW;
+            float t=CITY_TOP+row*damageCellH;
+            return new RectF(l,t,Math.min(CITY_BITMAP_W,l+damageCellW),Math.min(CITY_BOTTOM,t+damageCellH));
         }
 
-        void damageProtectedSite(float amount,float x){
+        RectF protectedBoundsWorld(){
+            if(!protectedSiteActive())return new RectF(0,CITY_TOP,0,CITY_TOP);
+            int minC=damageCols,maxC=-1,minR=damageRows,maxR=-1;
+            for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++){
+                if(protectedCells[r][c]){minC=Math.min(minC,c);maxC=Math.max(maxC,c);minR=Math.min(minR,r);maxR=Math.max(maxR,r);}
+            }
+            if(maxC<0)return new RectF(0,CITY_TOP,0,CITY_TOP);
+            return new RectF(minC*damageCellW,CITY_TOP+minR*damageCellH,
+                    Math.min(CITY_BITMAP_W,(maxC+1)*damageCellW),
+                    Math.min(CITY_BOTTOM,CITY_TOP+(maxR+1)*damageCellH));
+        }
+
+        void eraseRuntimeCell(int row,int col){
+            if(cityRuntimeCanvas==null)return;
+            float l=col*damageCellW,t=row*damageCellH;
+            Paint erase=new Paint();
+            erase.setStyle(Paint.Style.FILL);
+            erase.setXfermode(new android.graphics.PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+            cityRuntimeCanvas.drawRect(l,t,Math.min(CITY_BITMAP_W,l+damageCellW+.5f),Math.min(CITY_BITMAP_H,t+damageCellH+.5f),erase);
+            erase.setXfermode(null);
+        }
+
+        float cityCollisionYAt(float x){
+            if(citySolid==null||cityDestroyed==null)return CITY_TOP;
+            int col=Math.max(0,Math.min(damageCols-1,(int)(x/damageCellW)));
+            for(int row=0;row<damageRows;row++){
+                if(citySolid[row][col]&&!cityDestroyed[row][col])return CITY_TOP+row*damageCellH;
+            }
+            return CITY_BOTTOM;
+        }
+
+        void spawnCellDebris(int row,int col,boolean protectedCell){
+            RectF r=cellWorldRect(row,col);
+            int[] rubble=protectedCell
+                    ?new int[]{Color.rgb(205,205,195),Color.rgb(150,150,145),Color.rgb(105,105,102),Color.rgb(225,210,185)}
+                    :new int[]{Color.rgb(125,108,82),Color.rgb(155,135,100),Color.rgb(90,85,76),Color.LTGRAY};
+            int count=protectedCell?4:2;
+            for(int i=0;i<count;i++){
+                float x=r.left+rnd.nextFloat()*Math.max(1f,r.width());
+                float y=r.top+rnd.nextFloat()*Math.max(1f,r.height());
+                particles.add(new Particle(x,y,-28+rnd.nextFloat()*56,-45-rnd.nextFloat()*65,
+                        .32f+rnd.nextFloat()*.48f,rubble[rnd.nextInt(rubble.length)],1.2f+rnd.nextFloat()*2.8f));
+            }
+        }
+
+        void applyCityImpact(float impactX,float impactY,float amount,float meteorRadius){
             if(inv.shieldSeconds>0)return;
-            if(!protectedTileHit(x))return;
-            protectedSiteHealth=Math.max(0f,protectedSiteHealth-Math.max(8f,amount*1.8f));
-            RectF r=protectedTileRect();
-            burst(Math.max(r.left,Math.min(r.right,x)),CITY_TOP+22,Color.LTGRAY,10);
-            if(protectedSiteHealth<=0&&!protectedSiteDestroyed)destroyProtectedSite();
+            if(citySolid==null||cityDestroyed==null)return;
+            float localY=Math.max(0f,Math.min(CITY_BITMAP_H-1f,impactY-CITY_TOP));
+            int centerC=Math.max(0,Math.min(damageCols-1,(int)(impactX/damageCellW)));
+            int centerR=Math.max(0,Math.min(damageRows-1,(int)(localY/damageCellH)));
+            float radius=Math.max(Math.max(damageCellW,damageCellH),meteorRadius*.72f);
+            int rc=Math.max(1,(int)Math.ceil(radius/damageCellW));
+            int rr=Math.max(1,(int)Math.ceil(radius/damageCellH));
+            boolean touchedProtected=false;
+            for(int row=Math.max(0,centerR-rr);row<=Math.min(damageRows-1,centerR+rr);row++){
+                for(int col=Math.max(0,centerC-rc);col<=Math.min(damageCols-1,centerC+rc);col++){
+                    float cx=(col+.5f)*damageCellW;
+                    float cy=(row+.5f)*damageCellH;
+                    float dx=cx-impactX,dy=cy-localY;
+                    if(dx*dx+dy*dy>radius*radius)continue;
+                    if(!citySolid[row][col]||cityDestroyed[row][col])continue;
+                    cityDestroyed[row][col]=true;
+                    boolean protectedCell=protectedCells!=null&&protectedCells[row][col];
+                    touchedProtected|=protectedCell;
+                    eraseRuntimeCell(row,col);
+                    spawnCellDebris(row,col,protectedCell);
+                }
+            }
+            if(touchedProtected&&inv.shieldSeconds<=0&&!protectedSiteDestroyed){
+                protectedSiteHealth=Math.max(0f,protectedSiteHealth-Math.max(8f,amount*1.8f));
+                if(protectedSiteHealth<=0)destroyProtectedSite();
+            }
         }
 
         void destroyProtectedSite(){
+            if(protectedSiteDestroyed)return;
             protectedSiteDestroyed=true;protectedSiteHealth=0;lastProtectedBonus=0;
-            RectF r=protectedTileRect();
-            float cx=r.centerX(),cy=CITY_TOP+30;
-            int[] concrete={Color.rgb(185,185,175),Color.rgb(130,130,125),Color.rgb(95,95,92),Color.rgb(215,205,185)};
-            for(int i=0;i<65;i++){
-                double a=rnd.nextDouble()*Math.PI*2;
-                float sp=30+rnd.nextFloat()*115;
-                particles.add(new Particle(cx,cy,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp-.25f*sp,.45f+rnd.nextFloat()*.75f,concrete[rnd.nextInt(concrete.length)],2f+rnd.nextFloat()*4f));
+            if(protectedCells!=null){
+                for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++){
+                    if(!protectedCells[r][c])continue;
+                    if(!cityDestroyed[r][c]){
+                        cityDestroyed[r][c]=true;
+                        eraseRuntimeCell(r,c);
+                        spawnCellDebris(r,c,true);
+                    }
+                }
             }
+            RectF bounds=protectedBoundsWorld();
+            burst(bounds.centerX(),bounds.centerY(),Color.LTGRAY,48);
             startCityShake(18f,false);
         }
 
         void updateProtectedSiteFire(float dt){
-            if(!protectedSiteDestroyed)return;
+            if(!protectedSiteDestroyed||protectedCells==null)return;
             protectedFireTimer-=dt;
             if(protectedFireTimer>0)return;
-            protectedFireTimer=.025f+.025f*rnd.nextFloat();
-            RectF r=protectedTileRect();
-            int n=3+rnd.nextInt(3);
+            protectedFireTimer=.018f+.025f*rnd.nextFloat();
+            int tries=0,row=0,col=0;
+            do{
+                row=rnd.nextInt(Math.max(1,damageRows));
+                col=rnd.nextInt(Math.max(1,damageCols));
+                tries++;
+            }while(tries<40&&!(protectedCells[row][col]&&cityDestroyed[row][col]));
+            if(!(protectedCells[row][col]&&cityDestroyed[row][col]))return;
+            RectF r=cellWorldRect(row,col);
+            int n=2+rnd.nextInt(3);
             for(int i=0;i<n;i++){
-                float x=r.left+rnd.nextFloat()*Math.max(1,r.width());
-                float y=CITY_TOP+18+rnd.nextFloat()*35;
-                int col=rnd.nextBoolean()?Color.rgb(255,80,15):Color.rgb(255,190,30);
-                particles.add(new Particle(x,y,-15+rnd.nextFloat()*30,-45-rnd.nextFloat()*65,.35f+rnd.nextFloat()*.38f,col,2f+rnd.nextFloat()*3.5f));
+                float x=r.left+rnd.nextFloat()*Math.max(1f,r.width());
+                float y=r.bottom-rnd.nextFloat()*Math.max(2f,r.height()*.7f);
+                int color=rnd.nextBoolean()?Color.rgb(255,75,12):Color.rgb(255,190,25);
+                particles.add(new Particle(x,y,-10+rnd.nextFloat()*20,-45-rnd.nextFloat()*70,
+                        .34f+rnd.nextFloat()*.40f,color,1.5f+rnd.nextFloat()*3f));
             }
         }
 
@@ -697,6 +904,42 @@ public class GameV2Activity extends Activity {
 
         boolean hasSavedGame(){return savePrefs().getBoolean("exists",false);}
 
+        String serializeCityDamage(){
+            if(cityDestroyed==null)return "";
+            StringBuilder out=new StringBuilder();
+            out.append(damageCols).append('x').append(damageRows).append('|');
+            boolean first=true;
+            for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++){
+                if(!cityDestroyed[r][c])continue;
+                if(!first)out.append(',');
+                out.append(r*damageCols+c);
+                first=false;
+            }
+            return out.toString();
+        }
+
+        void restoreCityDamage(String encoded){
+            if(encoded==null||encoded.length()==0||cityDestroyed==null)return;
+            try{
+                int bar=encoded.indexOf('|');
+                if(bar<0)return;
+                String[] dim=encoded.substring(0,bar).split("x");
+                if(dim.length!=2)return;
+                int cols=Integer.parseInt(dim[0]),rows=Integer.parseInt(dim[1]);
+                if(cols!=damageCols||rows!=damageRows)return;
+                String body=encoded.substring(bar+1);
+                if(body.length()==0)return;
+                for(String token:body.split(",")){
+                    int idx=Integer.parseInt(token);
+                    int r=idx/damageCols,c=idx%damageCols;
+                    if(r>=0&&r<damageRows&&c>=0&&c<damageCols){
+                        cityDestroyed[r][c]=true;
+                        eraseRuntimeCell(r,c);
+                    }
+                }
+            }catch(Exception ignored){}
+        }
+
         void saveGame(){
             StringBuilder divs=new StringBuilder();
             for(Integer d:inv.divisors){if(divs.length()>0)divs.append(',');divs.append(d);}
@@ -719,6 +962,7 @@ public class GameV2Activity extends Activity {
                     .putFloat("protectedSiteHealth",protectedSiteHealth)
                     .putBoolean("protectedSiteDestroyed",protectedSiteDestroyed)
                     .putBoolean("protectedSiteBonusAwarded",protectedSiteBonusAwarded)
+                    .putString("cityDamageGrid",serializeCityDamage())
                     .apply();
             saveNotice=true;saveNoticeTimer=1.6f;
         }
@@ -749,7 +993,8 @@ public class GameV2Activity extends Activity {
             inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
-            loadCityForPhase();configureProtectedTiles();
+            loadCityForPhase();initializeDamageGrid();
+            restoreCityDamage(sp.getString("cityDamageGrid",""));
             protectedSiteHealth=waves.wave>1?Math.max(0f,Math.min(100f,sp.getFloat("protectedSiteHealth",100f))):100f;
             protectedSiteDestroyed=waves.wave>1&&sp.getBoolean("protectedSiteDestroyed",false);
             protectedSiteBonusAwarded=sp.getBoolean("protectedSiteBonusAwarded",false);
@@ -877,14 +1122,29 @@ public class GameV2Activity extends Activity {
         }
 
         void updateMeteors(float dt){
-            Iterator<Meteor> it=meteors.iterator();while(it.hasNext()){
-                Meteor m=it.next();if(m.dead){it.remove();continue;}if(m==pendingBonusTarget)continue;emitMeteorTrail(m,dt);m.y+=m.speed*dt;
-                if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){commercial.active=false;commercial=null;audio.play("aviao_comercial_atingido.wav");damageCity(6,m.x,false);burst(m.x,m.y,Color.LTGRAY,18);m.dead=true;continue;}
-                if(m.y>318){
-                    if(m.kind==Kind.BONUS)damageCity(3,m.x,false);
-                    else{
+            Iterator<Meteor> it=meteors.iterator();
+            while(it.hasNext()){
+                Meteor m=it.next();
+                if(m.dead){it.remove();continue;}
+                if(m==pendingBonusTarget)continue;
+                emitMeteorTrail(m,dt);
+                m.y+=m.speed*dt;
+
+                if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){
+                    commercial.active=false;commercial=null;
+                    audio.play("aviao_comercial_atingido.wav");
+                    damageCity(6,m.x,false);
+                    burst(m.x,m.y,Color.LTGRAY,18);
+                    m.dead=true;continue;
+                }
+
+                float collisionY=cityCollisionYAt(m.x);
+                if(m.y+m.radius>=collisionY){
+                    if(m.kind==Kind.BONUS){
+                        damageCity(3,m.x,false);
+                    }else{
                         float impact=Math.min(18,4+m.value/18f);
-                        damageProtectedSite(impact,m.x);
+                        applyCityImpact(m.x,collisionY,impact,m.radius);
                         damageCity(impact,m.x,false);
                     }
                     m.dead=true;
@@ -1137,17 +1397,20 @@ public class GameV2Activity extends Activity {
         void drawCity(Canvas c){if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,315,800,390),pixel);else{p.setColor(Color.DKGRAY);c.drawRect(0,330,800,390,p);}int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);for(int i=0;i<smokes;i++){float x=55+(i*137+lastImpactX/3)%690;drawSmoke(c,x,337+(i%2)*12);}}
 
         void drawProtectedSiteDamage(Canvas c){
-            if(!protectedSiteActive())return;
-            RectF r=protectedTileRect();
-            if(protectedSiteDestroyed){
-                p.setColor(Color.argb(195,18,18,16));c.drawRect(r,p);
-                p.setColor(Color.rgb(70,70,66));c.drawRect(r.left,CITY_TOP+38,r.right,CITY_BOTTOM,p);
-                int flicker=(int)(SystemClock.uptimeMillis()/90)%3;
-                for(int i=0;i<5;i++){
-                    float fx=r.left+5+(i*13)%(Math.max(8,(int)r.width()-8));
-                    float top=CITY_TOP+28-flicker*2-(i%2)*6;
-                    p.setColor((i&1)==0?Color.rgb(255,70,10):Color.rgb(255,190,25));
-                    c.drawRect(fx,top,fx+6,CITY_TOP+52,p);
+            if(!protectedSiteActive()||protectedCells==null||cityDestroyed==null)return;
+            int flicker=(int)(SystemClock.uptimeMillis()/85)%3;
+            for(int row=0;row<damageRows;row++){
+                for(int col=0;col<damageCols;col++){
+                    if(!protectedCells[row][col]||!cityDestroyed[row][col])continue;
+                    RectF r=cellWorldRect(row,col);
+                    p.setColor(Color.argb(205,28,25,22));c.drawRect(r,p);
+                    p.setColor(Color.rgb(92,88,82));
+                    c.drawRect(r.left,r.bottom-Math.max(1f,r.height()*.30f),r.right,r.bottom,p);
+                    if(protectedSiteDestroyed){
+                        p.setColor(((row+col)&1)==0?Color.rgb(255,70,10):Color.rgb(255,190,25));
+                        float flameTop=r.top+Math.max(0f,r.height()*.12f-flicker);
+                        c.drawRect(r.left+1,flameTop,r.right-1,r.bottom-1,p);
+                    }
                 }
             }
         }
