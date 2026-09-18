@@ -284,13 +284,15 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
+            meteors.clear();particles.clear();uiParticles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
+            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
+            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;protectedTileStart=0;protectedTileEnd=-1;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
             inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
             inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
@@ -307,7 +309,7 @@ public class GameV2Activity extends Activity {
 
         void beginNextWave(){
             running=false;preWave=true;paused=false;waveClear=false;intermission=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;cannonAngle=-45f;
-            aiming=false;aimTargetTimer=0;aimCharge=0;dirtParticleTimer=0;
+            aiming=false;aimTargetTimer=0;aimCharge=0;aimCharged=false;hudChargeFlashTimer=0;dirtParticleTimer=0;
             preparePhase();
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
@@ -333,9 +335,46 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        String protectedSiteName(){
+            String[] names={"","",
+                    "CRISTO REDENTOR","PONTE ESTAIADA","MINEIRAO","ELEVADOR LACERDA","MARCO ZERO",
+                    "FAROL DO MUCURIPE","JARDIM BOTANICO","USINA DO GASOMETRO","TEATRO AMAZONAS",
+                    "VER-O-PESO","MONUMENTO AS TRES RACAS","TORRE DO CASTELO","CONVENTO DA PENHA",
+                    "PONTE HERCILIO LUZ","FORTE DOS REIS MAGOS","FAROL DO CABO BRANCO",
+                    "FAROL DA PONTA VERDE","PONTE DO IMPERADOR","PALACIO DOS LEOES","IGREJA DO ROSARIO",
+                    "OBELISCO","BASILICA DO SANTISSIMO SALVADOR","MAC","CONGRESSO NACIONAL"};
+            return names[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        int protectedTileCenterForPhase(){
+            int[] centers={0,0,10,15,11,10,12,19,10,15,11,12,14,9,20,15,12,20,21,14,13,10,12,21,17,13};
+            return centers[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        void configureProtectedTiles(){
+            if(waves.wave<=1){protectedTileStart=0;protectedTileEnd=-1;return;}
+            int center=protectedTileCenterForPhase();
+            int half=(waves.wave==2||waves.wave==15||waves.wave==25)?1:0;
+            protectedTileStart=Math.max(0,center-half);
+            protectedTileEnd=Math.min(CITY_TILE_COLS-1,center+half);
+        }
+
+        void loadCityForPhase(){
+            if(waves.wave<=1){cityImg=baseCityImg;return;}
+            Bitmap phase=assetBitmap(String.format(java.util.Locale.US,"graficos/cidades/cidade_%02d.png",waves.wave));
+            cityImg=phase!=null?phase:baseCityImg;
+        }
+
         void preparePhase(){
             lastDivisorAcquired=scheduledDivisorForPhase();
             if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
+            loadCityForPhase();
+            configureProtectedTiles();
+            protectedSiteHealth=100f;
+            protectedSiteDestroyed=false;
+            protectedSiteBonusAwarded=false;
+            protectedFireTimer=0f;
+            lastProtectedBonus=0;
         }
 
         void startIntermission(){
@@ -404,8 +443,7 @@ public class GameV2Activity extends Activity {
         int currentChargedDivisor(){
             int base=Math.max(2,inv.selectedDivisor);
             if(selectedMode==1)return Math.max(1,inv.subtractorValue);
-            int max=base*base;
-            return Math.max(base,Math.min(max,Math.round(base+(max-base)*aimCharge)));
+            return aimCharged?base*base:base;
         }
 
         void pointCannonAt(float tx,float ty){
@@ -413,12 +451,35 @@ public class GameV2Activity extends Activity {
             cannonAngle=(float)Math.toDegrees(Math.atan2(aimY-deployedCannonY(),aimX-cannonX));
         }
 
+        void emitHudChargeBurst(){
+            int idx=projectileIndexForDivisor(inv.selectedDivisor);
+            RectF r=(idx>=0&&idx<divisorRects.length)?divisorRects[idx]:null;
+            float cx=r!=null?r.centerX():30f+idx*36f;
+            float cy=r!=null?r.centerY():440f;
+            for(int i=0;i<24;i++){
+                double a=rnd.nextDouble()*Math.PI*2;
+                float sp=18+rnd.nextFloat()*55;
+                int col=rnd.nextBoolean()?Color.CYAN:Color.WHITE;
+                uiParticles.add(new Particle(cx,cy,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp,.30f+rnd.nextFloat()*.38f,col,1.2f+rnd.nextFloat()*2.4f));
+            }
+        }
+
         void updateAimCharge(float dt){
             if(!aiming)return;
             long held=SystemClock.uptimeMillis()-aimDownTime;
-            if(selectedMode==0&&held>360){
-                aimCharge=Math.max(0f,Math.min(1f,(held-360)/1450f));
-                chargedProjectileValue=currentChargedDivisor();
+            if(selectedMode==0&&held>=520){
+                if(!aimCharged){
+                    aimCharged=true;
+                    aimCharge=1f;
+                    chargedProjectileValue=inv.selectedDivisor*inv.selectedDivisor;
+                    hudChargeFlashTimer=.55f;
+                    emitHudChargeBurst();
+                    float cy=deployedCannonY();
+                    double rad=Math.toRadians(cannonAngle);
+                    float mx=cannonX+(float)Math.cos(rad)*25f;
+                    float my=cy+(float)Math.sin(rad)*25f;
+                    burst(mx,my,Color.CYAN,24);
+                }
                 chargeParticleTimer-=dt;
                 if(chargeParticleTimer<=0){
                     chargeParticleTimer=.035f;
@@ -426,15 +487,14 @@ public class GameV2Activity extends Activity {
                     double rad=Math.toRadians(cannonAngle);
                     float mx=cannonX+(float)Math.cos(rad)*25f;
                     float my=cy+(float)Math.sin(rad)*25f;
-                    int count=2+(aimCharge>.65f?2:0);
-                    for(int i=0;i<count;i++){
+                    for(int i=0;i<4;i++){
                         double a=rnd.nextDouble()*Math.PI*2;
-                        float sp=18+rnd.nextFloat()*42;
+                        float sp=22+rnd.nextFloat()*48;
                         int col=rnd.nextBoolean()?Color.CYAN:Color.WHITE;
-                        particles.add(new Particle(mx,my,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp,.22f+rnd.nextFloat()*.22f,col,1.2f+rnd.nextFloat()*2.2f));
+                        particles.add(new Particle(mx,my,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp,.22f+rnd.nextFloat()*.25f,col,1.4f+rnd.nextFloat()*2.5f));
                     }
                 }
-            }else{
+            }else if(!aimCharged){
                 aimCharge=0f;
                 chargedProjectileValue=selectedMode==1?Math.max(1,inv.subtractorValue):inv.selectedDivisor;
             }
