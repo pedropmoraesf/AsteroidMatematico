@@ -156,8 +156,8 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
-        static final int CITY_TILE_W=32, CITY_TILE_H=15, CITY_TILE_COLS=25, CITY_TILE_ROWS=5;
-        static final float CITY_TOP=315f, CITY_BOTTOM=390f;
+        static final int CITY_TILE_SIZE=16, CITY_TILE_COLS=50, CITY_TILE_ROWS=5;
+        static final float CITY_TOP=310f, CITY_BOTTOM=390f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
         final Paint tintPaint=new Paint();
@@ -347,14 +347,14 @@ public class GameV2Activity extends Activity {
         }
 
         int protectedTileCenterForPhase(){
-            int[] centers={0,0,10,15,11,10,12,19,10,15,11,12,14,9,20,15,12,20,21,14,13,10,12,21,17,13};
+            int[] centers={0,0,20,30,22,20,24,38,20,30,22,24,28,18,40,30,24,40,42,28,26,20,24,42,34,26};
             return centers[Math.max(1,Math.min(25,waves.wave))];
         }
 
         void configureProtectedTiles(){
             if(waves.wave<=1){protectedTileStart=0;protectedTileEnd=-1;return;}
             int center=protectedTileCenterForPhase();
-            int half=(waves.wave==2||waves.wave==15||waves.wave==25)?1:0;
+            int half=(waves.wave==2||waves.wave==15||waves.wave==25)?2:1;
             protectedTileStart=Math.max(0,center-half);
             protectedTileEnd=Math.min(CITY_TILE_COLS-1,center+half);
         }
@@ -558,12 +558,12 @@ public class GameV2Activity extends Activity {
 
         boolean protectedTileHit(float x){
             if(!protectedSiteActive()||protectedSiteDestroyed)return false;
-            int col=Math.max(0,Math.min(CITY_TILE_COLS-1,(int)(x/CITY_TILE_W)));
+            int col=Math.max(0,Math.min(CITY_TILE_COLS-1,(int)(x/CITY_TILE_SIZE)));
             return col>=protectedTileStart&&col<=protectedTileEnd;
         }
 
         RectF protectedTileRect(){
-            return new RectF(protectedTileStart*CITY_TILE_W,CITY_TOP,Math.min(800,(protectedTileEnd+1)*CITY_TILE_W),CITY_BOTTOM);
+            return new RectF(protectedTileStart*CITY_TILE_SIZE,CITY_TOP,Math.min(800,(protectedTileEnd+1)*CITY_TILE_SIZE),CITY_BOTTOM);
         }
 
         void damageProtectedSite(float amount,float x){
@@ -1082,12 +1082,12 @@ public class GameV2Activity extends Activity {
                 drawText(c,"Proteja a cidade e o ponto estrategico indicado em cada fase.",92,134,12,Color.WHITE,false);
                 drawText(c,"CONTROLE DE TIRO",92,166,14,Color.YELLOW,false);
                 drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,188,12,Color.WHITE,false);
-                drawText(c,"Segure: a arma energiza; o divisor cresce ate seu quadrado.",92,210,12,Color.WHITE,false);
+                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,210,12,Color.WHITE,false);
                 drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,232,12,Color.WHITE,false);
                 drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,254,12,Color.WHITE,false);
                 drawText(c,"ARSENAL",92,286,14,Color.YELLOW,false);
                 drawText(c,"7 municoes de divisor: 2, 3, 5, 7, 11, 13 e 17.",92,308,12,Color.WHITE,false);
-                drawText(c,"8o alvo/projetil: SUBTRATOR. So consome carga se acertar meteoro.",92,330,12,Color.WHITE,false);
+                drawText(c,"8o alvo/projetil: SUBTRATOR. Todo disparo consome a carga escolhida.",92,330,12,Color.WHITE,false);
                 drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,352,12,Color.WHITE,false);
                 drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
             }else{
