@@ -214,6 +214,8 @@ public class GameV2Activity extends Activity {
         }
 
         Bitmap assetBitmap(String path){
+            Bitmap preloaded=SplashActivity.takePreloadedBitmap(path);
+            if(preloaded!=null)return preloaded;
             try{InputStream in=getContext().getAssets().open(path);Bitmap b=BitmapFactory.decodeStream(in);in.close();return b;}
             catch(IOException e){return null;}
         }
