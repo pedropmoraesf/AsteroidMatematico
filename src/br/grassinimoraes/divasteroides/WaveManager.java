@@ -2,6 +2,8 @@ package br.grassinimoraes.divasteroides;
 
 /** Progressao deliberadamente suave: primeiro aprende a regra, depois ganha pressao. */
 final class WaveManager {
+    static final int MAX_WAVE = 25;
+
     int wave = 1;
     int destroyedThisWave = 0;
     int targetThisWave = 5;
@@ -43,9 +45,10 @@ final class WaveManager {
     boolean allowLargePrime() { return wave >= 5; }
     void countDestroyed() { destroyedThisWave++; }
     boolean complete() { return destroyedThisWave >= targetThisWave; }
+    boolean isFinalWave() { return wave >= MAX_WAVE; }
 
     void nextWave() {
-        wave++;
+        if (wave < MAX_WAVE) wave++;
         destroyedThisWave=0;
         targetThisWave = Math.min(12, 4 + wave);
     }
