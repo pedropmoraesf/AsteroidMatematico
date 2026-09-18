@@ -1031,8 +1031,8 @@ public class GameV2Activity extends Activity {
         }
 
         void drawGame(Canvas c){
-            p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawShieldDome(c);
-            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);
+            p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawProtectedSiteDamage(c);drawShieldDome(c);
+            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+waves.wave,400,112,22,Color.YELLOW,true);
@@ -1041,7 +1041,15 @@ public class GameV2Activity extends Activity {
                 if(lastDivisorAcquired>0)drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
                 drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
             }
-            if(waveClear){p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);drawText(c,"FASE "+completedWave+" CONCLUIDA",400,190,36,Color.CYAN,true);drawText(c,"CIDADE REPARADA - 100%",400,232,18,Color.WHITE,true);}
+            if(waveClear){
+                p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);
+                drawText(c,"FASE "+completedWave+" CONCLUIDA",400,176,36,Color.CYAN,true);
+                drawText(c,"CIDADE REPARADA - 100%",400,218,18,Color.WHITE,true);
+                if(completedWave>1){
+                    if(lastProtectedBonus>0)drawText(c,"OBJETIVO PRESERVADO  +"+lastProtectedBonus+" PONTOS",400,252,16,Color.YELLOW,true);
+                    else drawText(c,"OBJETIVO ESTRATEGICO PERDIDO",400,252,16,Color.RED,true);
+                }
+            }
             if(intermission)drawIntermission(c);
             if(quizOpen)drawQuiz(c);
             if(paused)drawPauseMenu(c);
@@ -1125,6 +1133,30 @@ public class GameV2Activity extends Activity {
 
         void drawStars(Canvas c){p.setColor(Color.rgb(120,160,205));for(int i=0;i<42;i++){int x=(i*97+31)%800;int y=(i*53+17)%305;c.drawRect(x,y,x+1,y+1,p);}}
         void drawCity(Canvas c){if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,315,800,390),pixel);else{p.setColor(Color.DKGRAY);c.drawRect(0,330,800,390,p);}int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);for(int i=0;i<smokes;i++){float x=55+(i*137+lastImpactX/3)%690;drawSmoke(c,x,337+(i%2)*12);}}
+
+        void drawProtectedSiteDamage(Canvas c){
+            if(!protectedSiteActive())return;
+            RectF r=protectedTileRect();
+            if(protectedSiteDestroyed){
+                p.setColor(Color.argb(195,18,18,16));c.drawRect(r,p);
+                p.setColor(Color.rgb(70,70,66));c.drawRect(r.left,CITY_TOP+38,r.right,CITY_BOTTOM,p);
+                int flicker=(int)(SystemClock.uptimeMillis()/90)%3;
+                for(int i=0;i<5;i++){
+                    float fx=r.left+5+(i*13)%(Math.max(8,(int)r.width()-8));
+                    float top=CITY_TOP+28-flicker*2-(i%2)*6;
+                    p.setColor((i&1)==0?Color.rgb(255,70,10):Color.rgb(255,190,25));
+                    c.drawRect(fx,top,fx+6,CITY_TOP+52,p);
+                }
+            }
+        }
+
+        void drawUiParticles(Canvas c){
+            for(Particle q:uiParticles){
+                p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));
+                c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);
+            }
+            p.setAlpha(255);
+        }
         void drawSmoke(Canvas c,float x,float y){if(smokeImg!=null){p.setAlpha(cityHealth<=30?155:115);c.drawBitmap(smokeImg,null,new RectF(x-9,y-34,x+13,y-12),pixel);p.setAlpha(255);}}
 
         void drawShieldDome(Canvas c){
@@ -1263,7 +1295,7 @@ public class GameV2Activity extends Activity {
                 RectF br=new RectF(pl.bombX-9,pl.bombY-5,pl.bombX+9,pl.bombY+5);
                 if(planeBombImg!=null)c.drawBitmap(planeBombImg,null,br,pixel);
                 else{
-                    p.setColor(Color.rgb(72,82,48));c.drawOval(br,p);
+                    p.setColor(Color.rgb(72,82,48));c.drawRoundRect(br,4,4,p);
                     p.setColor(Color.YELLOW);c.drawRect(pl.bombX+2,pl.bombY-5,pl.bombX+4,pl.bombY+5,p);
                 }
                 c.restore();
@@ -1290,8 +1322,15 @@ public class GameV2Activity extends Activity {
                 boolean have=inv.divisors.contains(prime);
                 if(molduraSheet!=null){p.setAlpha(have?255:80);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}
                 else{p.setColor(have?Color.rgb(16,45,62):Color.rgb(28,31,35));c.drawRect(r,p);}
-                if(have&&inv.selectedDivisor==prime&&selectedMode==0){p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);}
-                drawOutlinedText(c,String.valueOf(prime),r.centerX(),446,14,have?Color.WHITE:Color.rgb(105,110,115));
+                if(have&&inv.selectedDivisor==prime&&selectedMode==0){
+                    if(hudChargeFlashTimer>0){
+                        int a=(int)(70+140*Math.abs(Math.sin(SystemClock.uptimeMillis()/55.0)));
+                        p.setColor(Color.argb(a,120,245,255));c.drawRect(r,p);
+                    }
+                    p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);
+                }
+                String ammoText=(have&&inv.selectedDivisor==prime&&selectedMode==0&&hudChargeFlashTimer>0)?String.valueOf(prime*prime):String.valueOf(prime);
+                drawOutlinedText(c,ammoText,r.centerX(),446,14,have?Color.WHITE:Color.rgb(105,110,115));
                 x+=36;
             }
 
@@ -1322,6 +1361,12 @@ public class GameV2Activity extends Activity {
             p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);
             drawText(c,"CIDADE "+(int)cityHealth+"%",116,68,11,Color.WHITE,true);
             if(inv.shieldSeconds>0)drawText(c,"ESCUDO "+(int)Math.ceil(inv.shieldSeconds),250,22,13,Color.CYAN,false);
+            if(protectedSiteActive()){
+                drawText(c,"ALVO "+protectedSiteName(),250,43,10,protectedSiteDestroyed?Color.RED:Color.WHITE,false);
+                p.setColor(Color.rgb(55,22,18));c.drawRect(250,55,480,68,p);
+                p.setColor(protectedSiteHealth>60?Color.CYAN:protectedSiteHealth>30?Color.YELLOW:Color.RED);
+                c.drawRect(250,55,250+230*protectedSiteHealth/100f,68,p);
+            }
 
             // Pause no canto direito da faixa marrom, fora da área útil do céu e fora do HUD azul.
             if(running&&!preWave&&!gameOver){
