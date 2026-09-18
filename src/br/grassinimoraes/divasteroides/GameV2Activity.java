@@ -389,6 +389,68 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        int projectileIndexForDivisor(int d){
+            for(int i=0;i<MeteorMathV2.PRIMES.length;i++)if(MeteorMathV2.PRIMES[i]==d)return i;
+            return 0;
+        }
+
+        int currentAimIndex(){return selectedMode==1?7:projectileIndexForDivisor(inv.selectedDivisor);}
+
+        int currentChargedDivisor(){
+            int base=Math.max(2,inv.selectedDivisor);
+            if(selectedMode==1)return Math.max(1,inv.subtractorValue);
+            int max=base*base;
+            return Math.max(base,Math.min(max,Math.round(base+(max-base)*aimCharge)));
+        }
+
+        void pointCannonAt(float tx,float ty){
+            aimX=Math.max(0,Math.min(800,tx));aimY=Math.max(0,Math.min(389,ty));
+            cannonAngle=(float)Math.toDegrees(Math.atan2(aimY-deployedCannonY(),aimX-cannonX));
+        }
+
+        void updateAimCharge(float dt){
+            if(!aiming)return;
+            long held=SystemClock.uptimeMillis()-aimDownTime;
+            if(selectedMode==0&&held>360){
+                aimCharge=Math.max(0f,Math.min(1f,(held-360)/1450f));
+                chargedProjectileValue=currentChargedDivisor();
+                chargeParticleTimer-=dt;
+                if(chargeParticleTimer<=0){
+                    chargeParticleTimer=.035f;
+                    float cy=deployedCannonY();
+                    double rad=Math.toRadians(cannonAngle);
+                    float mx=cannonX+(float)Math.cos(rad)*25f;
+                    float my=cy+(float)Math.sin(rad)*25f;
+                    int count=2+(aimCharge>.65f?2:0);
+                    for(int i=0;i<count;i++){
+                        double a=rnd.nextDouble()*Math.PI*2;
+                        float sp=18+rnd.nextFloat()*42;
+                        int col=rnd.nextBoolean()?Color.CYAN:Color.WHITE;
+                        particles.add(new Particle(mx,my,(float)Math.cos(a)*sp,(float)Math.sin(a)*sp,.22f+rnd.nextFloat()*.22f,col,1.2f+rnd.nextFloat()*2.2f));
+                    }
+                }
+            }else{
+                aimCharge=0f;
+                chargedProjectileValue=selectedMode==1?Math.max(1,inv.subtractorValue):inv.selectedDivisor;
+            }
+        }
+
+        void emitCannonDirt(float dt){
+            if(cannonDeploy<=0f||cannonDeploy>=.98f)return;
+            dirtParticleTimer-=dt;
+            if(dirtParticleTimer>0)return;
+            dirtParticleTimer=.028f;
+            int n=5+rnd.nextInt(4);
+            int[] earth={Color.rgb(111,78,44),Color.rgb(142,102,58),Color.rgb(83,61,39),Color.rgb(166,127,75)};
+            for(int i=0;i<n;i++){
+                float x=cannonX-31+rnd.nextFloat()*62f;
+                float y=towerBaseY-2-rnd.nextFloat()*5f;
+                float vx=-38+rnd.nextFloat()*76f;
+                float vy=-42-rnd.nextFloat()*75f;
+                particles.add(new Particle(x,y,vx,vy,.34f+rnd.nextFloat()*.42f,earth[rnd.nextInt(earth.length)],1.5f+rnd.nextFloat()*3.2f));
+            }
+        }
+
         void update(float dt){
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);return;}
@@ -397,8 +459,10 @@ public class GameV2Activity extends Activity {
             if(paused)return;
             updateCityShake(dt);
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
-            else if(shotTimer<=0)cannonAngle=-45f;
+            else if(shotTimer<=0&&!aiming)cannonAngle=-45f;
             if(shotTimer>0)shotTimer=Math.max(0,shotTimer-dt);
+            if(!aiming&&aimTargetTimer>0)aimTargetTimer=Math.max(0,aimTargetTimer-dt);
+            updateAimCharge(dt);
             updatePendingBonus(dt);
             if(introWhiteFade>0)introWhiteFade=Math.max(0,introWhiteFade-dt);
             if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
@@ -417,6 +481,8 @@ public class GameV2Activity extends Activity {
                 preWaveTimer-=dt;
                 float raw=1f-Math.max(0,preWaveTimer)/PRE_WAVE_DURATION;
                 cannonDeploy=1f-(float)Math.pow(1f-Math.max(0,Math.min(1,raw)),3);
+                emitCannonDirt(dt);
+                updateParticles(dt);
                 if(preWaveTimer<=0){preWave=false;running=true;cannonDeploy=1f;audio.stopLong();audio.play("chuva_meteoros_inicio.wav");}
                 return;
             }
