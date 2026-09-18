@@ -853,19 +853,41 @@ public class GameV2Activity extends Activity {
         }
 
         void drawManual(Canvas c,boolean overlay){
-            if(overlay){p.setColor(Color.argb(220,0,0,0));c.drawRect(0,0,800,390,p);}
-            drawDarkCard(c,90,28,710,445);
-            drawText(c,"MANUAL RAPIDO",400,62,27,Color.CYAN,true);
-            drawText(c,"Toque em um ponto do ceu para apontar e disparar.",120,98,13,Color.WHITE,false);
-            drawText(c,"Meteoros: escolha um divisor exato para reduzir o numero.",120,124,13,Color.WHITE,false);
-            drawText(c,"Itens: atire neles para coletar dinheiro, escudo e bonus.",120,150,13,Color.WHITE,false);
-            drawText(c,"SUBTRATOR: gasta carga somente quando acerta um meteoro.",120,176,13,Color.WHITE,false);
-            drawText(c,"BOMBA 0: congela a tela, marca e zera todos os meteoros.",120,202,13,Color.WHITE,false);
-            drawText(c,"DINHEIRO: entre fases compre Bomba 0 ou carga Subtrator.",120,228,13,Color.WHITE,false);
-            drawText(c,"Quizzes especiais chamam o aviao militar quando corretos.",120,254,13,Color.WHITE,false);
-            drawText(c,"Proteja a cidade e o ponto turistico indicado em cada fase.",120,280,13,Color.WHITE,false);
-            drawText(c,"A campanha termina apos a Fase 25.",120,306,13,Color.YELLOW,false);
-            drawMenuButton(c,new RectF(310,372,490,414),"VOLTAR",false);
+            if(overlay){p.setColor(Color.argb(225,0,0,0));c.drawRect(0,0,800,390,p);}
+            drawDarkCard(c,62,20,738,452);
+            p.setColor(Color.rgb(72,94,54));c.drawRect(72,30,728,72,p);
+            drawText(c,"BRIEFING MILITAR // OPERACAO ESCUDO",400,58,23,Color.rgb(235,235,190),true);
+            drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/2",400,84,11,Color.LTGRAY,true);
+
+            if(manualPage==0){
+                drawText(c,"OBJETIVO PRIMARIO",92,112,14,Color.YELLOW,false);
+                drawText(c,"Proteja a cidade e o ponto estrategico indicado em cada fase.",92,134,12,Color.WHITE,false);
+                drawText(c,"CONTROLE DE TIRO",92,166,14,Color.YELLOW,false);
+                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,188,12,Color.WHITE,false);
+                drawText(c,"Segure: a arma energiza; o divisor cresce ate seu quadrado.",92,210,12,Color.WHITE,false);
+                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,232,12,Color.WHITE,false);
+                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,254,12,Color.WHITE,false);
+                drawText(c,"ARSENAL",92,286,14,Color.YELLOW,false);
+                drawText(c,"7 municoes de divisor: 2, 3, 5, 7, 11, 13 e 17.",92,308,12,Color.WHITE,false);
+                drawText(c,"8o alvo/projetil: SUBTRATOR. So consome carga se acertar meteoro.",92,330,12,Color.WHITE,false);
+                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,352,12,Color.WHITE,false);
+                drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
+            }else{
+                drawText(c,"PROTOCOLO DE DIVISIBILIDADE",92,112,14,Color.YELLOW,false);
+                drawText(c,"2  // ultimo algarismo par: 0, 2, 4, 6 ou 8.",92,138,12,Color.WHITE,false);
+                drawText(c,"3  // soma dos algarismos divisivel por 3.",92,162,12,Color.WHITE,false);
+                drawText(c,"5  // termina em 0 ou 5.",92,186,12,Color.WHITE,false);
+                drawText(c,"7  // retire o ultimo algarismo e subtraia o dobro dele;",92,210,12,Color.WHITE,false);
+                drawText(c,"     repita ate reconhecer um multiplo de 7.",92,230,12,Color.LTGRAY,false);
+                drawText(c,"11 // diferenca entre as somas alternadas dos algarismos",92,254,12,Color.WHITE,false);
+                drawText(c,"     deve ser 0 ou multiplo de 11.",92,274,12,Color.LTGRAY,false);
+                drawText(c,"13 // retire o ultimo algarismo e some 4 vezes esse valor;",92,298,12,Color.WHITE,false);
+                drawText(c,"     repita ate reconhecer um multiplo de 13.",92,318,12,Color.LTGRAY,false);
+                drawText(c,"17 // retire o ultimo algarismo e subtraia 5 vezes esse valor;",92,342,12,Color.WHITE,false);
+                drawText(c,"     repita ate reconhecer um multiplo de 17.",92,362,12,Color.LTGRAY,false);
+                drawMenuButton(c,new RectF(110,382,325,421),"< BRIEFING",false);
+            }
+            drawMenuButton(c,new RectF(315,423,485,446),"VOLTAR",false);
         }
 
         void drawIntermission(Canvas c){
@@ -1177,14 +1199,16 @@ public class GameV2Activity extends Activity {
 
         void handlePauseTouch(float x,float y){
             if(manualFromPause){
-                if(x>=290&&x<=510&&y>=350&&y<=430)manualFromPause=false;
+                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
+                if(x>=290&&x<=510&&y>=415&&y<=455){manualFromPause=false;manualPage=0;}
                 return;
             }
             for(int i=0;i<pauseButtons.length;i++)if(pauseButtons[i].contains(x,y)){
                 if(i==0){paused=false;audio.setMusicPaused(false);}
                 else if(i==1)returnToMainMenu();
                 else if(i==2)saveGame();
-                else if(i==3)manualFromPause=true;
+                else if(i==3){manualFromPause=true;manualPage=0;}
                 else GameV2Activity.this.finish();
                 return;
             }
@@ -1206,11 +1230,15 @@ public class GameV2Activity extends Activity {
                 if(x>=235&&x<=565&&y>=80&&y<=134){selectedDifficulty=(selectedDifficulty+1)%6;waves.difficulty=selectedDifficulty;}
                 else if(x>=235&&x<=565&&y>=134&&y<=186)laserEnabled=!laserEnabled;
                 else if(x>=235&&x<=565&&y>=186&&y<=238)vibrationEnabled=!vibrationEnabled;
-                else if(x>=235&&x<=565&&y>=238&&y<=290)menuPage=MENU_MANUAL;
+                else if(x>=235&&x<=565&&y>=238&&y<=290){menuPage=MENU_MANUAL;manualPage=0;}
                 else if(x>=235&&x<=565&&y>=290&&y<=342){getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE).edit().clear().apply();scoreClearedNotice=true;scoreNoticeTimer=1.5f;}
                 else if(x>=290&&x<=510&&y>=365&&y<=430)menuPage=MENU_MAIN;
             }
-            else if(menuPage==MENU_MANUAL){if(x>=290&&x<=510&&y>=350&&y<=430)menuPage=MENU_OPTIONS;}
+            else if(menuPage==MENU_MANUAL){
+                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
+                if(x>=290&&x<=510&&y>=415&&y<=455){menuPage=MENU_OPTIONS;manualPage=0;}
+            }
         }
     }
 }
