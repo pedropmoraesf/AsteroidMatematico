@@ -373,19 +373,12 @@ public class GameV2Activity extends Activity {
             for(Meteor m:targets){m.targetBlink=false;explode(m,true,false);}
         }
 
-        void shootBonus(Meteor m){
-            if(m==null||m.dead||pendingBonusTarget!=null)return;
-            pendingBonusTarget=m;m.targetBlink=true;m.blinkTime=0;pendingBonusTimer=shotDuration;
-            aimAndFire(m,Color.YELLOW);
-            audio.play("alvo_trava.wav");
-        }
-
         void updatePendingBonus(float dt){
             if(pendingBonusTarget==null)return;
-            pendingBonusTimer-=dt;pendingBonusTarget.blinkTime+=dt;
+            pendingBonusTimer-=dt;
             if(pendingBonusTimer<=0){
                 Meteor m=pendingBonusTarget;pendingBonusTarget=null;
-                if(m!=null&&!m.dead){m.targetBlink=false;collectBonus(m);}
+                if(m!=null&&!m.dead)collectBonus(m);
             }
         }
 
@@ -706,8 +699,7 @@ public class GameV2Activity extends Activity {
 
         void queueBonusCollection(Meteor m){
             if(m==null||m.dead||pendingBonusTarget!=null)return;
-            pendingBonusTarget=m;m.targetBlink=true;m.blinkTime=0;pendingBonusTimer=shotDuration;
-            audio.play("alvo_trava.wav");
+            pendingBonusTarget=m;pendingBonusTimer=shotDuration;
         }
 
         void applyDivisorShot(Meteor m,int divisor){
