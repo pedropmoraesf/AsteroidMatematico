@@ -864,7 +864,7 @@ public class GameV2Activity extends Activity {
                     // A x0 não elimina quiz: reduz a conta para operandos de um algarismo.
                     m.quiz=MeteorMathV2.simplifyQuizToOneDigit(rnd,m.quiz,usedQuizExpressions);
                     m.value=m.quiz.answer;
-                    m.originalValue=m.value;
+                    addHudNotice("x0: QUIZ REDUZIDO PARA 1 ALGARISMO",Color.CYAN);
                     burst(m.x,m.y,Color.CYAN,14);
                 }else if(m.kind==Kind.BONUS){
                     // Bônus atingidos pela x0 são creditados normalmente.
@@ -1444,6 +1444,11 @@ public class GameV2Activity extends Activity {
                 m.originalValue=m.value;
             }
 
+            if(m.kind!=Kind.BONUS){
+                m.rewardCap=Math.max(0,m.originalValue);
+                m.moneyEarned=0;
+            }
+
             boolean canPrefer=m.kind!=Kind.BONUS&&protectedSiteActive()&&!protectedSiteDestroyed;
             float preferChance=Math.min(.44f,.28f+waves.wave*.006f);
             if(canPrefer&&rnd.nextFloat()<preferChance){
@@ -1684,6 +1689,7 @@ public class GameV2Activity extends Activity {
             shotStartY=cy+(float)Math.sin(rad)*muzzleOffset;
             shotProjectileIndex=Math.max(0,Math.min(7,projectileIndex));
             shotWasCharged=aimCharged&&selectedMode==0;
+            shotHyper=selectedMode==1;
             shotProjectileValue=chargedProjectileValue;
             projectileParticleTimer=0f;
             cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=aimX;shotTargetY=aimY;
@@ -1730,11 +1736,19 @@ public class GameV2Activity extends Activity {
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
 
-            // Todo disparo que efetivamente acerta um meteoro rende seu valor corrente.
-            inv.money+=Math.max(0,hit.value);
+            // O total de dinheiro obtido de um mesmo meteoro nunca excede
+            // o valor que ele tinha ao entrar na fase.
+            int income=WaveManager.meteorHitIncome(hit.rewardCap,hit.moneyEarned,hit.value);
+            if(income>0){
+                hit.moneyEarned+=income;
+                inv.money+=income;
+                addHudNotice("+R$ "+income+"  METEORO",Color.YELLOW);
+            }
 
             if(selectedMode==1){
-                burst(hit.x,hit.y,Color.WHITE,16);
+                burst(hit.x,hit.y,Color.WHITE,34);
+                burst(hit.x,hit.y,Color.CYAN,22);
+                addHudNotice("H: DESTRUICAO TOTAL DO ALVO",Color.CYAN);
                 explode(hit,true,false);
                 return;
             }
@@ -1780,17 +1794,27 @@ public class GameV2Activity extends Activity {
                 case AMMO:
                     if(subtractionMechanic){
                         inv.addWeaponAmmo(m.ammoValue,2);
+                        addHudNotice("MUNICAO "+m.ammoValue+" +2",Color.YELLOW);
                         audio.play("bonus_municao.wav");
                     }else{
-                        if(inv.unlockDivisor(m.ammoValue))audio.play("municao_desbloqueada.wav");
+                        boolean unlocked=inv.unlockDivisor(m.ammoValue);
+                        addHudNotice(unlocked?"DIVISOR "+m.ammoValue+" LIBERADO":"DIVISOR "+m.ammoValue+" JA DISPONIVEL",Color.YELLOW);
+                        if(unlocked)audio.play("municao_desbloqueada.wav");
                         else audio.play("bonus_municao.wav");
                     }
                     break;
-                case HYPER:inv.addHyper(1);audio.play("bonus_municao.wav");break;
-                case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;
-                case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;
-                case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;
-                case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;
+                case HYPER:
+                    inv.addHyper(1);addHudNotice("ARMA H +1",Color.CYAN);audio.play("bonus_municao.wav");break;
+                case MONEY:
+                    inv.money+=m.value;addHudNotice("+R$ "+m.value+"  BONUS",Color.YELLOW);audio.play("bonus_dinheiro.wav");break;
+                case HEALTH:
+                    float before=cityHealth;cityHealth=Math.min(100,cityHealth+m.value);
+                    addHudNotice("CIDADE +"+Math.round(cityHealth-before)+"%",Color.GREEN);audio.play("bonus_saude.wav");break;
+                case SHIELD:
+                    inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;
+                    addHudNotice("ESCUDO 10s",Color.CYAN);audio.play("bonus_escudo.wav");break;
+                case BOMB0:
+                    inv.bombZero++;addHudNotice("BOMBA x0 +1",Color.rgb(255,150,110));audio.play("bonus_municao.wav");break;
             }
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
@@ -1808,7 +1832,6 @@ public class GameV2Activity extends Activity {
                 if(quizAttempts>=2){
                     quizMeteor.kind=Kind.NORMAL;
                     quizMeteor.value=quizMeteor.quiz.answer;
-                    quizMeteor.originalValue=quizMeteor.value;
                     quizMeteor.quiz=null;
                     quizOpen=false;quizMeteor=null;
                 }
