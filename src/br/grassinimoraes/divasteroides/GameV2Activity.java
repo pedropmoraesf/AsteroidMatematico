@@ -975,6 +975,17 @@ public class GameV2Activity extends Activity {
             return false;
         }
 
+        float protectedSiteRemainingFraction(){
+            if(protectedCells==null||cityDestroyed==null)return 0f;
+            int total=0,remaining=0;
+            for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++){
+                if(!protectedCells[r][c])continue;
+                total++;
+                if(!cityDestroyed[r][c])remaining++;
+            }
+            return total<=0?0f:remaining/(float)total;
+        }
+
         RectF cellWorldRect(int row,int col){
             float l=col*damageCellW;
             float t=CITY_TOP+row*damageCellH;
@@ -1058,7 +1069,9 @@ public class GameV2Activity extends Activity {
             if(touchedProtected&&inv.shieldSeconds<=0&&!protectedSiteDestroyed){
                 float targetDamage=Math.max(6f,Math.min(55f,meteorValue*.55f));
                 protectedSiteHealth=Math.max(0f,protectedSiteHealth-targetDamage);
-                if(protectedSiteHealth<=0)destroyProtectedSite();
+                float physicalHealth=protectedSiteRemainingFraction()*100f;
+                protectedSiteHealth=Math.min(protectedSiteHealth,physicalHealth);
+                if(protectedSiteHealth<=0f||physicalHealth<=0f)destroyProtectedSite();
             }
         }
 
@@ -1157,12 +1170,13 @@ public class GameV2Activity extends Activity {
             if(waves.complete()&&meteors.isEmpty()&&military==null&&(!subtractionMechanic||phaseAmmoDropIndex>=phaseAmmoPlan.size())){
                 audio.play("fase_concluida.wav");
                 if(protectedSiteActive()&&!protectedSiteBonusAwarded){
-                    if(protectedSiteDestroyed||protectedSiteHealth<=0f){
+                    float physicalRemaining=protectedSiteRemainingFraction();
+                    float remaining=Math.max(0f,Math.min(physicalRemaining,protectedSiteHealth/100f));
+                    if(protectedSiteDestroyed||remaining<=0f){
                         int loss=Math.min(inv.money,15+selectedDifficulty*15+waves.wave*3);
                         inv.money-=loss;
                         lastProtectedBonus=-loss;
                     }else{
-                        float remaining=Math.max(0f,Math.min(1f,protectedSiteHealth/100f));
                         int fullBonus=55+waves.wave*12;
                         lastProtectedBonus=Math.max(1,Math.round(fullBonus*remaining));
                         inv.money+=lastProtectedBonus;
@@ -1671,8 +1685,10 @@ public class GameV2Activity extends Activity {
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
 
+            // Todo disparo que efetivamente acerta um meteoro rende seu valor corrente.
+            inv.money+=Math.max(0,hit.value);
+
             if(selectedMode==1){
-                inv.money+=Math.max(0,hit.value);
                 burst(hit.x,hit.y,Color.WHITE,16);
                 explode(hit,true,false);
                 return;
@@ -1680,7 +1696,6 @@ public class GameV2Activity extends Activity {
 
             if(isQuizMeteor(hit)){openQuiz(hit);return;}
 
-            inv.money+=Math.max(0,hit.value);
             if(subtractionMechanic)applySubtractorShot(hit,projectileValue);
             else applyDivisorShot(hit,projectileValue);
         }
