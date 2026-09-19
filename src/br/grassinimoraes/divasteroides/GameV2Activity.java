@@ -2379,15 +2379,11 @@ public class GameV2Activity extends Activity {
             if(m.kind==Kind.BONUS)return;
             m.tailTimer-=dt;if(m.tailTimer>0)return;
             m.tailTimer=.030f+.030f*rnd.nextFloat();
-            int col=Color.rgb(255,145,30);
-            if(m.kind==Kind.MULT)col=Color.rgb(75,220,105);
-            else if(m.kind==Kind.ADD)col=Color.rgb(255,215,55);
-            else if(m.kind==Kind.SUB)col=Color.rgb(255,105,85);
-            else if(m.kind==Kind.DIV)col=Color.rgb(80,205,255);
-            for(int i=0;i<3;i++){
+            int col=isQuizMeteor(m)?Color.rgb(235,45,35):Color.rgb(255,145,30);
+            for(int i=0;i<(isQuizMeteor(m)?5:3);i++){
                 float tx=m.x-m.radius+rnd.nextFloat()*(m.radius*2f);
-                float ty=m.y-m.radius-rnd.nextFloat()*(m.radius*2f);
-                particles.add(new Particle(tx,ty,-8+rnd.nextFloat()*16,-5-rnd.nextFloat()*18,.22f+rnd.nextFloat()*.24f,col,1.4f+rnd.nextFloat()*2.4f));
+                float ty=m.y-m.radius-rnd.nextFloat()*(m.radius*2.4f);
+                particles.add(new Particle(tx,ty,-10+rnd.nextFloat()*20,-8-rnd.nextFloat()*26,.24f+rnd.nextFloat()*.28f,col,1.5f+rnd.nextFloat()*2.8f));
             }
         }
         void saveScore(){if(scoreSaved||score<=0||destroyedTotal<=0)return;scoreSaved=true;try{SharedPreferences sp=getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE);String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss",java.util.Locale.getDefault()).format(new java.util.Date());int check=score%(destroyedTotal+1);sp.edit().putString(date,date+"|"+score+"|"+destroyedTotal+"|"+check).apply();}catch(Exception ignored){}}
@@ -2437,7 +2433,7 @@ public class GameV2Activity extends Activity {
             if(aiming){
                 String v;
                 if(selectedMode==1)v="H "+MeteorMathV2.MAX_METEOR_VALUE;
-                else if(subtractionMechanic)v="SUB "+inv.selectedWeapon;
+                else if(subtractionMechanic)v=String.valueOf(inv.selectedWeapon);
                 else v="DIV "+currentChargedDivisor();
                 drawOutlinedText(c,v,aimX,Math.max(18,aimY-r-7),13,aimCharge>0?Color.CYAN:Color.WHITE);
             }
@@ -2447,19 +2443,26 @@ public class GameV2Activity extends Activity {
             if(m.kind==Kind.BONUS){
                 drawBonusMeteor(c,m);
             }else{
+                boolean quiz=isQuizMeteor(m);
+                if(quiz){
+                    float pulse=1f+.08f*(float)Math.sin(SystemClock.uptimeMillis()/90.0);
+                    float aura=(m.radius+9f)*pulse;
+                    p.setColor(Color.argb(54,70,175,255));c.drawCircle(m.x,m.y,aura,p);
+                    p.setColor(Color.argb(120,90,205,255));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2.2f);
+                    c.drawCircle(m.x,m.y,aura-2f,p);p.setStyle(Paint.Style.FILL);
+                }
                 Paint use=pixel;
-                if(m.kind==Kind.MULT){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(80,205,105),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.ADD){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,220,80),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.SUB){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,115,95),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.DIV){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(100,210,255),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                if(quiz){
+                    tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(92,205,112),PorterDuff.Mode.MULTIPLY));use=tintPaint;
+                }
                 int frame=((int)(SystemClock.uptimeMillis()/130)+Math.abs(m.originalValue))%4;
                 RectF dest=new RectF(m.x-m.radius,m.y-m.radius,m.x+m.radius,m.y+m.radius);
                 if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,frame,dest,use);
-                else{p.setColor(Color.rgb(100,88,68));c.drawCircle(m.x,m.y,m.radius,p);}
+                else{p.setColor(quiz?Color.rgb(82,170,96):Color.rgb(100,88,68));c.drawCircle(m.x,m.y,m.radius,p);}
                 tintPaint.setColorFilter(null);
                 String text;
-                if(bombSequence&&!isQuizMeteor(m))text="0x"+m.value;
-                else text=isQuizMeteor(m)&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
+                if(bombSequence&&!quiz)text="0x"+m.value;
+                else text=quiz&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
                 drawText(c,text,m.x,m.y+5,15,Color.WHITE,true);
             }
             if(m.targetBlink&&((int)(m.blinkTime*10)%2==0)){
