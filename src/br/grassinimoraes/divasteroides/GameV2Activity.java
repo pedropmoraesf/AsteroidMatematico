@@ -34,6 +34,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -1233,16 +1234,52 @@ public class GameV2Activity extends Activity {
             if(vibrationEnabled){try{Vibrator v=(Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);if(v!=null)v.vibrate((long)(nuclear?650:65*escala));}catch(Exception ignored){}}
         }
 
+        boolean isQuizKind(Kind kind){
+            return kind==Kind.ADD||kind==Kind.SUB||kind==Kind.MULT||kind==Kind.DIV;
+        }
+
+        MeteorMathV2.Operation nextQuizOperation(){
+            if(quizBag.isEmpty()){
+                for(MeteorMathV2.Operation op:MeteorMathV2.Operation.values())quizBag.add(op);
+                Collections.shuffle(quizBag,rnd);
+                if(lastQuizOperation!=null&&quizBag.size()>1&&quizBag.get(0)==lastQuizOperation){
+                    MeteorMathV2.Operation t=quizBag.get(0);quizBag.set(0,quizBag.get(1));quizBag.set(1,t);
+                }
+            }
+            MeteorMathV2.Operation op=quizBag.remove(0);
+            lastQuizOperation=op;
+            return op;
+        }
+
+        Kind kindForOperation(MeteorMathV2.Operation op){
+            switch(op){
+                case SUB:return Kind.SUB;
+                case MULT:return Kind.MULT;
+                case DIV:return Kind.DIV;
+                default:return Kind.ADD;
+            }
+        }
+
+        void setupQuizMeteor(Meteor m){
+            MeteorMathV2.Operation op=nextQuizOperation();
+            m.kind=kindForOperation(op);
+            m.quiz=MeteorMathV2.generateQuiz(rnd,op,selectedDifficulty,waves.wave);
+            m.value=m.quiz.answer;m.originalValue=m.value;m.radius=22;
+            phaseQuizCount++;
+            audio.play((op==MeteorMathV2.Operation.MULT||op==MeteorMathV2.Operation.DIV)
+                    ?"meteoro_multiplicacao.wav":"meteoro_adicao.wav");
+        }
+
         void spawnMeteor(){
             Meteor m=new Meteor();m.y=-30;m.speed=waves.meteorSpeed()*(.85f+rnd.nextFloat()*.35f);m.radius=20;
             float roll=rnd.nextFloat();
-            if(roll<waves.bonusChance())setupBonus(m);
-            else if(roll<waves.bonusChance()+waves.specialChance()){
-                boolean mult=rnd.nextBoolean();m.kind=mult?Kind.MULT:Kind.ADD;m.quiz=MeteorMathV2.generateQuiz(rnd,mult,waves.wave);m.value=m.quiz.answer;m.originalValue=m.value;m.radius=22;audio.play(mult?"meteoro_multiplicacao.wav":"meteoro_adicao.wav");
-            }else{
+            boolean forceQuiz=waves.wave==1&&phaseQuizCount<4;
+            if(forceQuiz)setupQuizMeteor(m);
+            else if(roll<waves.bonusChance())setupBonus(m);
+            else if(roll<waves.bonusChance()+waves.specialChance())setupQuizMeteor(m);
+            else{
                 m.kind=Kind.NORMAL;
-                boolean largePrime=waves.allowLargePrime()&&inv.subtractorCharge>0;
-                m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),inv.highestDivisor(),largePrime);
+                m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),waves.wave,selectedDifficulty);
                 m.originalValue=m.value;
             }
 
@@ -1261,21 +1298,102 @@ public class GameV2Activity extends Activity {
         }
 
         void setupBonus(Meteor m){
-            m.kind=Kind.BONUS;m.radius=18;int r=rnd.nextInt(100);int candidate=nextLockedPrime();
-            if(candidate>0&&r<34){m.bonus=Bonus.AMMO;m.ammoValue=candidate;m.value=candidate;}
-            else if(r<53){m.bonus=Bonus.SUBTRACTOR;m.value=10+Math.min(20,waves.wave*2);}
-            else if(r<70){m.bonus=Bonus.MONEY;m.value=25;}
-            else if(r<84){m.bonus=Bonus.HEALTH;m.value=15;}
-            else if(r<94){m.bonus=Bonus.SHIELD;m.value=10;}
+            m.kind=Kind.BONUS;m.radius=18;int r=rnd.nextInt(100);
+            if(r<12){m.bonus=Bonus.H;m.value=1;}
+            else if(r<38){m.bonus=Bonus.MONEY;m.value=25+Math.min(75,waves.wave*4);}
+            else if(r<58){m.bonus=Bonus.HEALTH;m.value=10;}
+            else if(r<80){m.bonus=Bonus.SHIELD;m.value=10;}
             else{m.bonus=Bonus.BOMB0;m.value=0;}
         }
 
-        int nextLockedPrime(){int ceiling=waves.primeUnlockCeiling();for(int x:MeteorMathV2.PRIMES)if(x<=ceiling&&!inv.divisors.contains(x))return x;return -1;}
+        void spawnAmmoDrop(int weapon,float x){
+            if(weapon<=2||!inv.hasWeapon(weapon))return;
+            Meteor m=new Meteor();m.kind=Kind.BONUS;m.bonus=Bonus.AMMO;m.ammoValue=weapon;m.value=2;
+            m.radius=18;m.x=x;m.y=-24;m.speed=30f;
+            meteors.add(m);
+        }
+
+        void triggerPhaseAmmoDrop(){
+            if(ammoDropTriggered||phaseActiveSeconds<5f)return;
+            ammoDropTriggered=true;
+            ArrayList<Integer> owned=new ArrayList<Integer>();
+            for(Integer weapon:inv.weapons)if(weapon>2)owned.add(weapon);
+            if(owned.isEmpty())return;
+            int current=waves.currentWeaponValue();
+            boolean currentOwned=inv.hasWeapon(current)&&current>2;
+            ArrayList<Integer> previous=new ArrayList<Integer>();
+            for(Integer weapon:owned)if(!currentOwned||weapon!=current)previous.add(weapon);
+            if(currentOwned)spawnAmmoDrop(current,520f);
+            if(!previous.isEmpty()){
+                int previousWeapon=previous.get(rnd.nextInt(previous.size()));
+                spawnAmmoDrop(previousWeapon,currentOwned?280f:400f);
+            }
+        }
         void spawnCommercial(){
             commercial=new Plane();
             commercial.x=-70;commercial.baseY=78+rnd.nextInt(145);commercial.y=commercial.baseY;
             commercial.speed=72+waves.wave*2.2f;commercial.military=false;commercial.bobPhase=rnd.nextFloat()*6.28f;
             audio.play("aviao_comercial_passagem.wav");
+        }
+
+        void destroyCommercialPlane(){
+            if(commercial==null||!commercial.active)return;
+            Plane pl=commercial;
+            RectF bounds=pl.bounds();
+            Bitmap b=planeCommercial;
+            if(b!=null){
+                android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+                float xdpi=(dm.xdpi>100f&&dm.xdpi<1000f)?dm.xdpi:385f;
+                float ydpi=(dm.ydpi>100f&&dm.ydpi<1000f)?dm.ydpi:385f;
+                float tileW=Math.max(2f,Math.min(18f,(xdpi/25.4f)/Math.max(.01f,scaleX)));
+                float tileH=Math.max(2f,Math.min(18f,(ydpi/25.4f)/Math.max(.01f,scaleY)));
+                int cols=Math.max(1,(int)Math.ceil(bounds.width()/tileW));
+                int rows=Math.max(1,(int)Math.ceil(bounds.height()/tileH));
+                for(int row=0;row<rows;row++){
+                    for(int col=0;col<cols;col++){
+                        int sx0=(int)Math.floor(col*b.getWidth()/(float)cols);
+                        int sx1=Math.max(sx0+1,(int)Math.ceil((col+1)*b.getWidth()/(float)cols));
+                        int sy0=(int)Math.floor(row*b.getHeight()/(float)rows);
+                        int sy1=Math.max(sy0+1,(int)Math.ceil((row+1)*b.getHeight()/(float)rows));
+                        sx1=Math.min(b.getWidth(),sx1);sy1=Math.min(b.getHeight(),sy1);
+                        int sample=b.getPixel(Math.min(b.getWidth()-1,(sx0+sx1)/2),Math.min(b.getHeight()-1,(sy0+sy1)/2));
+                        if(Color.alpha(sample)<24)continue;
+                        float l=bounds.left+col*bounds.width()/cols;
+                        float t=bounds.top+row*bounds.height()/rows;
+                        float w=Math.max(1f,bounds.width()/cols);
+                        float h=Math.max(1f,bounds.height()/rows);
+                        float vx=-95+rnd.nextFloat()*190f;
+                        float vy=-105-rnd.nextFloat()*120f;
+                        boolean dangerous=rnd.nextFloat()<.46f;
+                        planeDebris.add(new PlaneDebris(l+w*.5f,t+h*.5f,vx,vy,w,h,
+                                rnd.nextFloat()*360f,-260+rnd.nextFloat()*520f,
+                                new Rect(sx0,sy0,sx1,sy1),dangerous));
+                    }
+                }
+            }
+            burst(pl.x,pl.y,Color.LTGRAY,24);
+            audio.play("aviao_comercial_atingido.wav");
+            pl.active=false;
+            commercial=null;
+        }
+
+        void updatePlaneDebris(float dt){
+            if(planeDebris.isEmpty())return;
+            float damage=0f,damageX=400f;
+            Iterator<PlaneDebris> it=planeDebris.iterator();
+            while(it.hasNext()){
+                PlaneDebris d=it.next();
+                d.x+=d.vx*dt;d.y+=d.vy*dt;d.vy+=125f*dt;d.angle+=d.spin*dt;
+                if(d.dangerous&&d.y+d.h*.5f>=cityCollisionYAt(d.x)&&d.y<CITY_BOTTOM+8f){
+                    float hitY=cityCollisionYAt(d.x);
+                    applyCityImpact(d.x,hitY,.6f,Math.max(d.w,d.h),2);
+                    damage+=.42f;damageX=d.x;d.dangerous=false;
+                    burst(d.x,hitY,Color.LTGRAY,3);
+                    it.remove();continue;
+                }
+                if(d.y>430f||d.x<-80f||d.x>880f)it.remove();
+            }
+            if(damage>0)damageCity(Math.min(6f,damage),damageX,false);
         }
 
         void emitPlaneTrail(Plane pl,float dt){
@@ -1352,10 +1470,7 @@ public class GameV2Activity extends Activity {
                 m.y+=m.speed*dt;
 
                 if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){
-                    commercial.active=false;commercial=null;
-                    audio.play("aviao_comercial_atingido.wav");
-                    damageCity(6,m.x,false);
-                    burst(m.x,m.y,Color.LTGRAY,18);
+                    destroyCommercialPlane();
                     m.dead=true;continue;
                 }
 
@@ -1363,6 +1478,10 @@ public class GameV2Activity extends Activity {
                 if(m.y+m.radius>=collisionY){
                     if(m.kind==Kind.BONUS){
                         damageCity(3,m.x,false);
+                    }else if(isQuizKind(m.kind)){
+                        float impact=Math.min(18,7+Math.min(MeteorMathV2.MAX_METEOR_VALUE,m.originalValue)/22f);
+                        applyCityImpact(m.x,collisionY,impact,m.radius,Math.min(MeteorMathV2.MAX_METEOR_VALUE,m.originalValue));
+                        damageCity(cityHealth*.5f,m.x,false);
                     }else{
                         float impact=Math.min(18,4+m.value/18f);
                         applyCityImpact(m.x,collisionY,impact,m.radius,m.originalValue);
@@ -1397,28 +1516,29 @@ public class GameV2Activity extends Activity {
             pendingBonusTarget=m;pendingBonusTimer=shotDuration;
         }
 
-        void applyDivisorShot(Meteor m,int divisor){
-            if(MeteorMathV2.canDivide(m.value,divisor)){
-                m.value/=divisor;
-                audio.play("divisao_correta.wav");
-                burst(m.x,m.y,Color.rgb(100,255,120),10);
-                m.radius=Math.max(11,m.radius*.88f);
-                if(m.value<=1)explode(m,true,false);
-            }else{
-                audio.play("divisao_errada.wav");
-                burst(m.x,m.y,Color.rgb(255,80,60),7);
-                score=Math.max(0,score-2);
-            }
-        }
-
-        void applySubtractorShot(Meteor m,int amount){
+        void applyWeaponShot(Meteor m,int amount){
+            int before=Math.max(0,m.value);
+            int removed=Math.min(before,Math.max(0,amount));
+            inv.money+=removed;
             audio.play("subtrator_uso.wav");
             burst(m.x,m.y,Color.CYAN,10);
-            if(amount>=m.value){m.value=0;explode(m,true,false);}
-            else m.value-=amount;
+            m.value-=Math.max(0,amount);
+            m.radius=Math.max(11,m.radius*.92f);
+            if(m.value<=0){m.value=0;explode(m,true,false);}
+        }
+
+        void applyHShot(Meteor m){
+            inv.money+=Math.max(0,m.value);
+            burst(m.x,m.y,Color.WHITE,18);
+            m.value=0;
+            explode(m,true,false);
         }
 
         void resolveShotAt(float x,float y,int projectileValue){
+            if(commercial!=null&&commercial.active&&commercial.bounds().contains(x,y)){
+                destroyCommercialPlane();
+                return;
+            }
             Meteor hit=null;
             for(int i=meteors.size()-1;i>=0;i--){
                 Meteor m=meteors.get(i);
@@ -1426,20 +1546,19 @@ public class GameV2Activity extends Activity {
             }
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
-            if(hit.kind==Kind.ADD||hit.kind==Kind.MULT){openQuiz(hit);return;}
-            if(selectedMode==1){applySubtractorShot(hit,projectileValue);return;}
-            applyDivisorShot(hit,projectileValue);
+            if(isQuizKind(hit.kind)){openQuiz(hit);return;}
+            if(selectedMode==1){applyHShot(hit);return;}
+            applyWeaponShot(hit,projectileValue);
         }
 
         void releaseAimedShot(){
             updateAimCharge(0f);
-            int value=selectedMode==1?Math.max(1,inv.subtractorValue):currentChargedDivisor();
-            if(selectedMode==1){
-                if(value<1||value>inv.subtractorCharge||!inv.spendSubtractor(value)){
-                    audio.play("divisao_errada.wav");
-                    aiming=false;aimTargetTimer=.20f;aimCharge=0f;aimCharged=false;chargeParticleTimer=0f;
-                    return;
-                }
+            int value=currentChargedDivisor();
+            boolean canFire=selectedMode==1?inv.spendH():inv.spendAmmo(inv.selectedWeapon);
+            if(!canFire){
+                audio.play("divisao_errada.wav");
+                aiming=false;aimTargetTimer=.20f;aimCharge=0f;aimCharged=false;chargeParticleTimer=0f;
+                return;
             }
             int projectileIndex=aimTargetIndex;
             chargedProjectileValue=value;
@@ -1453,14 +1572,21 @@ public class GameV2Activity extends Activity {
         }
 
         void collectBonus(Meteor m){
-            switch(m.bonus){case AMMO:if(inv.unlockDivisor(m.ammoValue))audio.play("municao_desbloqueada.wav");else audio.play("bonus_municao.wav");break;case SUBTRACTOR:inv.addSubtractor(m.value);audio.play("bonus_subtrator.wav");break;case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;}
+            switch(m.bonus){
+                case AMMO:inv.addAmmo(m.ammoValue,2);audio.play("bonus_municao.wav");break;
+                case H:inv.addH(1);audio.play("bonus_municao.wav");break;
+                case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;
+                case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;
+                case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;
+                case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;
+            }
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
 
         void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
-        void answerQuiz(int option){if(!quizOpen||quizMeteor==null)return;if(option==quizMeteor.quiz.answer){audio.play("quiz_acerto.wav");audio.play("alvo_trava.wav");quizOpen=false;startMilitaryStrike(quizMeteor);}else{quizAttempts++;audio.play("quiz_erro.wav");if(quizAttempts>=2){quizMeteor.kind=Kind.NORMAL;quizMeteor.value=quizMeteor.quiz.answer;quizMeteor.originalValue=quizMeteor.value;quizMeteor.quiz=null;quizOpen=false;quizMeteor=null;}}}
+        void answerQuiz(int option){if(!quizOpen||quizMeteor==null)return;if(option==quizMeteor.quiz.answer){audio.play("quiz_acerto.wav");audio.play("alvo_trava.wav");inv.money+=Math.min(MeteorMathV2.MAX_METEOR_VALUE,Math.max(0,quizMeteor.value));quizOpen=false;startMilitaryStrike(quizMeteor);}else{quizAttempts++;audio.play("quiz_erro.wav");if(quizAttempts>=2){quizMeteor.kind=Kind.NORMAL;quizMeteor.value=Math.min(MeteorMathV2.MAX_METEOR_VALUE,Math.max(2,quizMeteor.quiz.answer));quizMeteor.originalValue=quizMeteor.value;quizMeteor.quiz=null;quizOpen=false;quizMeteor=null;}}}
         void startMilitaryStrike(Meteor target){
             military=new Plane();military.military=true;military.x=-75;
             military.baseY=Math.max(52,target.y-72);military.y=military.baseY;
