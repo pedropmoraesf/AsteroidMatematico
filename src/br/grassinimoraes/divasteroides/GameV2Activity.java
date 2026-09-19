@@ -377,7 +377,7 @@ public class GameV2Activity extends Activity {
 
         void beginNextWave(){
             running=false;preWave=true;paused=false;waveClear=false;intermission=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;cannonAngle=-45f;
-            aiming=false;aimTargetTimer=0;aimCharge=0;aimCharged=false;hudChargeFlashTimer=0;dirtParticleTimer=0;
+            aiming=false;aimTargetTimer=0;aimCharge=0;aimCharged=false;shotHyper=false;hudChargeFlashTimer=0;dirtParticleTimer=0;
             preparePhase();
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
@@ -1417,7 +1417,7 @@ public class GameV2Activity extends Activity {
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
@@ -1464,7 +1464,7 @@ public class GameV2Activity extends Activity {
         }
 
         void returnToMainMenu(){
-            running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
+            running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;
             pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
             cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;shotHyper=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
@@ -2479,7 +2479,7 @@ public class GameV2Activity extends Activity {
 
             bombRect.set(511,402,575,467);
             p.setColor(Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
-            drawText(c,"BOMBA 0",543,412,8,Color.LTGRAY,true);
+            drawText(c,"BOMBA x0",543,412,8,Color.LTGRAY,true);
             if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(527,419,559,451),pixel);
             drawText(c,"x"+inv.bombZero,543,463,10,Color.YELLOW,true);
 
