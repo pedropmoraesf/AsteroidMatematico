@@ -1043,30 +1043,40 @@ public class GameV2Activity extends Activity {
                 cannonDeploy=1f-(float)Math.pow(1f-Math.max(0,Math.min(1,raw)),3);
                 emitCannonDirt(dt);
                 updateParticles(dt);
-                if(preWaveTimer<=0){preWave=false;running=true;cannonDeploy=1f;audio.stopLong();audio.play("chuva_meteoros_inicio.wav");}
+                if(preWaveTimer<=0){preWave=false;running=true;cannonDeploy=1f;lastWeaponAcquired=0;audio.stopLong();audio.play("chuva_meteoros_inicio.wav");}
                 return;
             }
             updateCityFireParticles(dt);updateShield(dt);
             phaseActiveSeconds+=dt;
+            triggerPhaseAmmoDrop();
             if(gameOver||quizOpen){updateParticles(dt);updateMilitary(dt);return;}
             if(!waves.complete()){
                 spawnTimer-=dt;
                 if(spawnTimer<=0){spawnMeteor();spawnTimer=waves.spawnSeconds()*(.82f+rnd.nextFloat()*.36f);}
                 if(commercial==null&&rnd.nextFloat()<waves.commercialPlaneChancePerSecond()*dt*60f)spawnCommercial();
             }
-            updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updateParticles(dt);
-            if(waves.complete()&&meteors.isEmpty()&&military==null){
+            updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updatePlaneDebris(dt);updateParticles(dt);
+            if(waves.complete()&&meteors.isEmpty()&&military==null&&planeDebris.isEmpty()){
                 audio.play("fase_concluida.wav");
-                if(protectedSiteActive()&&!protectedSiteDestroyed&&!protectedSiteBonusAwarded){
-                    lastProtectedBonus=250+waves.wave*10;
-                    score+=lastProtectedBonus;
+                lastProtectedBonus=0;lastProtectedMoneyDelta=0;
+                if(protectedSiteActive()&&!protectedSiteBonusAwarded){
+                    if(protectedSiteDestroyed||protectedSiteHealth<=0f){
+                        float penaltyRate=.10f+.05f*Math.max(0,Math.min(4,selectedDifficulty));
+                        int penalty=inv.money<=0?0:Math.max(1,(int)Math.ceil(inv.money*penaltyRate));
+                        inv.money=Math.max(0,inv.money-penalty);
+                        lastProtectedMoneyDelta=-penalty;
+                    }else{
+                        int fullBonus=120+waves.wave*20+selectedDifficulty*40;
+                        int bonus=Math.max(0,Math.round(fullBonus*(protectedSiteHealth/100f)));
+                        inv.money+=bonus;
+                        lastProtectedBonus=bonus;
+                        lastProtectedMoneyDelta=bonus;
+                    }
                     protectedSiteBonusAwarded=true;
-                }else lastProtectedBonus=0;
+                }
                 int maxTimeBonus=300+waves.targetThisWave*40+waves.wave*5;
                 phaseTimeBonus=Math.max(0,Math.round(maxTimeBonus-phaseActiveSeconds*4f));
                 score+=phaseTimeBonus;
-                if(cityHealth<100f)audio.play("reconstrucao_cidade.wav");
-                cityHealth=100f;
                 running=false;
                 completedWave=waves.wave;
                 waveClear=true;
@@ -1076,7 +1086,7 @@ public class GameV2Activity extends Activity {
 
         void startVictory(){
             victory=true;running=false;preWave=false;paused=false;quizOpen=false;waveClear=false;gameOver=false;
-            cityHealth=100f;fireworkTimer=0f;audio.stopLong();audio.playMusicOnce("vitoria_final.ogg",.42f);saveScore();
+            fireworkTimer=0f;audio.stopLong();audio.playMusicOnce("vitoria_final.ogg",.42f);saveScore();
         }
 
         void updateVictory(float dt){
