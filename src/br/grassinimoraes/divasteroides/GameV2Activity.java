@@ -1128,6 +1128,7 @@ public class GameV2Activity extends Activity {
                     .putBoolean("protectedSiteDestroyed",protectedSiteDestroyed)
                     .putBoolean("protectedSiteBonusAwarded",protectedSiteBonusAwarded)
                     .putString("cityDamageGrid",serializeCityDamage())
+                    .putFloat("phaseActiveSeconds",phaseActiveSeconds)
                     .apply();
             saveNotice=true;saveNoticeTimer=1.6f;
         }
@@ -1164,6 +1165,9 @@ public class GameV2Activity extends Activity {
             protectedSiteDestroyed=waves.wave>1&&sp.getBoolean("protectedSiteDestroyed",false);
             protectedSiteBonusAwarded=sp.getBoolean("protectedSiteBonusAwarded",false);
             protectedFireTimer=0f;
+            phaseActiveSeconds=Math.max(0f,sp.getFloat("phaseActiveSeconds",0f));
+            phaseTimeBonus=0;
+            capturePhaseEnvironment();
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
             return true;
@@ -1611,7 +1615,15 @@ public class GameV2Activity extends Activity {
         }
 
         void drawStars(Canvas c){p.setColor(Color.rgb(120,160,205));for(int i=0;i<42;i++){int x=(i*97+31)%800;int y=(i*53+17)%305;c.drawRect(x,y,x+1,y+1,p);}}
-        void drawCity(Canvas c){if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,315,800,390),pixel);else{p.setColor(Color.DKGRAY);c.drawRect(0,330,800,390,p);}int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);for(int i=0;i<smokes;i++){float x=55+(i*137+lastImpactX/3)%690;drawSmoke(c,x,337+(i%2)*12);}}
+        void drawCity(Canvas c){
+            if(cityImg!=null)c.drawBitmap(cityImg,null,new RectF(0,CITY_TOP,800,CITY_BOTTOM),pixel);
+            else{p.setColor(Color.DKGRAY);c.drawRect(0,CITY_TOP,800,CITY_BOTTOM,p);}
+            int smokes=cityHealth>=75?0:1+(int)((75-cityHealth)/13f);
+            for(int i=0;i<smokes;i++){
+                float x=55+(i*137+lastImpactX/3)%690;
+                drawSmoke(c,x,CITY_TOP+22+(i%2)*12);
+            }
+        }
 
         void drawProtectedSiteDamage(Canvas c){
             if(!protectedSiteActive()||protectedCells==null||cityDestroyed==null)return;
@@ -1648,24 +1660,24 @@ public class GameV2Activity extends Activity {
 
             float reveal=Math.min(1f,shieldVisualAge/.70f);
             reveal=1f-(1f-reveal)*(1f-reveal);
-            float left=-55f,right=855f,base=306f,apex=242f;
+            float left=-55f,right=855f,base=306f,apex=178f;
             float half=(right-left)*.5f*reveal;
 
             Path edge=new Path();
             edge.moveTo(left,base);
-            edge.cubicTo(155f,318f,285f,286f,400f,apex);
-            edge.cubicTo(515f,286f,645f,318f,right,base);
+            edge.cubicTo(140f,310f,270f,230f,400f,apex);
+            edge.cubicTo(530f,230f,660f,310f,right,base);
 
             Path fill=new Path();
             fill.moveTo(left,base);
-            fill.cubicTo(155f,318f,285f,286f,400f,apex);
-            fill.cubicTo(515f,286f,645f,318f,right,base);
+            fill.cubicTo(140f,310f,270f,230f,400f,apex);
+            fill.cubicTo(530f,230f,660f,310f,right,base);
             fill.lineTo(right,390f);
             fill.lineTo(left,390f);
             fill.close();
 
             c.save();
-            c.clipRect(Math.max(0f,400f-half),225f,Math.min(800f,400f+half),391f);
+            c.clipRect(Math.max(0f,400f-half),160f,Math.min(800f,400f+half),391f);
             int pulse=(int)(6+5*Math.abs(Math.sin(SystemClock.uptimeMillis()/210.0)));
 
             p.setStyle(Paint.Style.FILL);
@@ -1843,6 +1855,8 @@ public class GameV2Activity extends Activity {
             p.setColor(cityHealth>60?Color.GREEN:cityHealth>30?Color.YELLOW:Color.RED);c.drawRect(12,55,12+208*cityHealth/100f,71,p);
             drawText(c,"CIDADE "+(int)cityHealth+"%",116,68,11,Color.WHITE,true);
             if(inv.shieldSeconds>0)drawText(c,"ESCUDO "+(int)Math.ceil(inv.shieldSeconds),250,22,13,Color.CYAN,false);
+            drawText(c,"HORA "+phaseClock,650,22,13,Color.WHITE,false);
+            drawText(c,phaseWeatherLabel(),650,43,10,phaseRain?Color.CYAN:Color.LTGRAY,false);
             if(protectedSiteActive()){
                 drawText(c,"ALVO "+protectedSiteName(),250,43,10,protectedSiteDestroyed?Color.RED:Color.WHITE,false);
                 p.setColor(Color.rgb(55,22,18));c.drawRect(250,55,480,68,p);
