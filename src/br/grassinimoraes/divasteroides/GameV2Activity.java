@@ -157,6 +157,26 @@ public class GameV2Activity extends Activity {
         }
     }
 
+    static final class WorldText {
+        final String text;
+        final int color;
+        float x,y,life;
+        final float maxLife;
+        WorldText(String text,float x,float y,int color,float life){
+            this.text=text;this.x=x;this.y=y;this.color=color;this.life=life;this.maxLife=life;
+        }
+    }
+
+    static final class PickupFly {
+        final Bonus bonus;
+        final int projectileIndex;
+        final float startX,startY,endX,endY,maxLife;
+        float life;
+        PickupFly(Bonus bonus,int projectileIndex,float startX,float startY,float endX,float endY,float life){
+            this.bonus=bonus;this.projectileIndex=projectileIndex;this.startX=startX;this.startY=startY;this.endX=endX;this.endY=endY;this.life=life;this.maxLife=life;
+        }
+    }
+
     enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
     enum Bonus { AMMO, HYPER, MONEY, HEALTH, SHIELD, BOMB0 }
 
@@ -199,6 +219,8 @@ public class GameV2Activity extends Activity {
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
         final List<HudNotice> hudNotices=new ArrayList<HudNotice>();
+        final List<WorldText> worldTexts=new ArrayList<WorldText>();
+        final List<PickupFly> pickupFlights=new ArrayList<PickupFly>();
         final List<PlaneFragment> planeDebris=new ArrayList<PlaneFragment>();
         final Set<String> usedQuizExpressions=new HashSet<String>();
         final List<Integer> phaseAmmoPlan=new ArrayList<Integer>();
