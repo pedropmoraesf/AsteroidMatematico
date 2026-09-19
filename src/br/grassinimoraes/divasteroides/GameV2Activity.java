@@ -373,13 +373,13 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
             cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;pendingBonusX=0;pendingBonusY=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
@@ -1039,10 +1039,9 @@ public class GameV2Activity extends Activity {
             for(WorldText q:worldTexts){
                 float t=Math.max(0f,Math.min(1f,q.life/q.maxLife));
                 int alpha=Math.max(0,Math.min(255,Math.round(255f*t*t)));
-                int col=Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color));
-                p.setAlpha(alpha);
-                drawOutlinedText(c,q.text,q.x,q.y,14,col);
-                p.setAlpha(255);
+                p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(14);p.setTextAlign(Paint.Align.CENTER);
+                p.setColor(Color.argb(alpha,35,20,0));c.drawText(q.text,q.x+1,q.y+1,p);
+                p.setColor(Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color)));c.drawText(q.text,q.x,q.y,p);
             }
         }
 
@@ -1507,7 +1506,7 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
@@ -1559,7 +1558,7 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            pendingBonusTarget=null;pendingBonusX=0;pendingBonusY=0;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
             cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;shotHyper=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
