@@ -756,6 +756,8 @@ public class GameV2Activity extends Activity {
 
         void preparePhase(){
             phaseActiveSeconds=0f;phaseTimeBonus=0;
+            // Cada fase representa uma cidade diferente: a nova cidade começa íntegra.
+            cityHealth=100f;
             capturePhaseEnvironment();
             if(subtractionMechanic){
                 lastDivisorAcquired=0;
@@ -828,22 +830,31 @@ public class GameV2Activity extends Activity {
         void startBombSequence(){
             if(inv.bombZero<=0||bombSequence)return;
             boolean hasTarget=false;
-            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS){hasTarget=true;break;}
+            for(Meteor m:meteors)if(!m.dead){hasTarget=true;break;}
             if(!hasTarget){audio.play("divisao_errada.wav");return;}
             inv.bombZero--;
             bombSequence=true;bombSequenceTimer=1.05f;
             audio.play("bomba_zero.wav");
-            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS){m.targetBlink=true;m.blinkTime=0;}
+            for(Meteor m:meteors)if(!m.dead){m.targetBlink=true;m.blinkTime=0;}
         }
 
         void updateBombSequence(float dt){
             bombSequenceTimer-=dt;
-            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS)m.blinkTime+=dt;
+            for(Meteor m:meteors)if(!m.dead)m.blinkTime+=dt;
             if(bombSequenceTimer>0)return;
             bombSequence=false;
             ArrayList<Meteor> targets=new ArrayList<Meteor>();
-            for(Meteor m:meteors)if(!m.dead&&m.kind!=Kind.BONUS)targets.add(m);
-            for(Meteor m:targets){m.targetBlink=false;explode(m,true,false);}
+            for(Meteor m:meteors)if(!m.dead)targets.add(m);
+            for(Meteor m:targets){
+                m.targetBlink=false;
+                if(m.kind==Kind.BONUS){
+                    // A x0 destrói bônus em vez de coletá-los e eles não contam como abate.
+                    m.dead=true;
+                    burst(m.x,m.y,Color.YELLOW,14);
+                }else{
+                    explode(m,true,false);
+                }
+            }
         }
 
         void updatePendingBonus(float dt){
