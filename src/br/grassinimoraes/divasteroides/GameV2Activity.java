@@ -1022,7 +1022,7 @@ public class GameV2Activity extends Activity {
 
         void addWorldMoney(float x,float y,int amount){
             if(amount<=0)return;
-            worldTexts.add(new WorldText("+R$ "+amount,x,y,Color.rgb(255,190,45),.78f));
+            worldTexts.add(new WorldText("+R$ "+amount,x,y,Color.rgb(255,205,55),1.20f));
         }
 
         void updateWorldTexts(float dt){
@@ -1031,18 +1031,34 @@ public class GameV2Activity extends Activity {
                 WorldText q=it.next();
                 q.life-=dt;
                 if(q.life<=0){it.remove();continue;}
-                q.y-=22f*dt;
+                q.y-=18f*dt;
             }
         }
 
         void drawWorldTexts(Canvas c){
             for(WorldText q:worldTexts){
                 float t=Math.max(0f,Math.min(1f,q.life/q.maxLife));
-                int alpha=Math.max(0,Math.min(255,Math.round(255f*t*t)));
-                p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(14);p.setTextAlign(Paint.Align.CENTER);
-                p.setColor(Color.argb(alpha,35,20,0));c.drawText(q.text,q.x+1,q.y+1,p);
-                p.setColor(Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color)));c.drawText(q.text,q.x,q.y,p);
+                float elapsed=1f-t;
+                float pop=Math.max(0f,1f-elapsed/.18f);
+                float textSize=18f+6f*pop;
+                float fade=t>=.38f?1f:(float)Math.pow(t/.38f,1.5);
+                int alpha=Math.max(0,Math.min(255,Math.round(255f*fade)));
+
+                p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(textSize);p.setTextAlign(Paint.Align.CENTER);
+
+                p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(5.5f);
+                p.setColor(Color.argb(Math.round(alpha*.35f),255,185,35));
+                c.drawText(q.text,q.x,q.y,p);
+
+                p.setStrokeWidth(3f);
+                p.setColor(Color.argb(alpha,45,24,0));
+                c.drawText(q.text,q.x,q.y,p);
+
+                p.setStyle(Paint.Style.FILL);
+                p.setColor(Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color)));
+                c.drawText(q.text,q.x,q.y,p);
             }
+            p.setStyle(Paint.Style.FILL);p.setStrokeWidth(1f);p.setAlpha(255);
         }
 
         float pickupHudX(int projectileIndex){
