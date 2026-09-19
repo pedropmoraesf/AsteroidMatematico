@@ -350,7 +350,7 @@ public class GameV2Activity extends Activity {
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
             protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
-            waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
+            waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=WaveManager.targetForWave(1);waves.difficulty=selectedDifficulty;
             inv.resetArsenal();inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;
             preparePhase();
@@ -397,7 +397,7 @@ public class GameV2Activity extends Activity {
         }
 
         int targetForPhase(int phase){
-            return phase<=1?5:Math.min(12,4+phase);
+            return WaveManager.targetForWave(phase);
         }
 
         int weaponPurchaseCost(int weapon){
@@ -847,10 +847,15 @@ public class GameV2Activity extends Activity {
             for(Meteor m:meteors)if(!m.dead)targets.add(m);
             for(Meteor m:targets){
                 m.targetBlink=false;
-                if(m.kind==Kind.BONUS){
-                    // A x0 destrói bônus em vez de coletá-los e eles não contam como abate.
-                    m.dead=true;
-                    burst(m.x,m.y,Color.YELLOW,14);
+                if(isQuizMeteor(m)&&m.quiz!=null){
+                    // A x0 não elimina quiz: reduz a conta para operandos de um algarismo.
+                    m.quiz=MeteorMathV2.simplifyQuizToOneDigit(rnd,m.quiz,usedQuizExpressions);
+                    m.value=m.quiz.answer;
+                    m.originalValue=m.value;
+                    burst(m.x,m.y,Color.CYAN,14);
+                }else if(m.kind==Kind.BONUS){
+                    // Bônus atingidos pela x0 são creditados normalmente.
+                    collectBonus(m);
                 }else{
                     explode(m,true,false);
                 }
@@ -2212,7 +2217,7 @@ public class GameV2Activity extends Activity {
                 else{p.setColor(Color.rgb(100,88,68));c.drawCircle(m.x,m.y,m.radius,p);}
                 tintPaint.setColorFilter(null);
                 String text;
-                if(bombSequence)text="0x"+m.value;
+                if(bombSequence&&!isQuizMeteor(m))text="0x"+m.value;
                 else text=isQuizMeteor(m)&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
                 drawText(c,text,m.x,m.y+5,15,Color.WHITE,true);
             }

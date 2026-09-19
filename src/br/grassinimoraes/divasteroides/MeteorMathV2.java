@@ -112,6 +112,41 @@ final class MeteorMathV2 {
         return buildQuiz(r,difficulty,wave,Operation.ADD);
     }
 
+    static Quiz simplifyQuizToOneDigit(Random r,Quiz source,Set<String> used) {
+        Operation op=source!=null?source.operation:Operation.values()[r.nextInt(Operation.values().length)];
+        for(int tries=0;tries<80;tries++) {
+            Quiz q=buildOneDigitQuiz(r,op);
+            if(used==null || used.add(q.key())) return q;
+        }
+        return buildOneDigitQuiz(r,op);
+    }
+
+    private static Quiz buildOneDigitQuiz(Random r,Operation op) {
+        int a,b;
+        switch(op) {
+            case SUBTRACT:
+                a=r.nextInt(10);
+                b=r.nextInt(a+1);
+                break;
+            case MULTIPLY:
+                a=1+r.nextInt(9);
+                b=2+r.nextInt(8);
+                break;
+            case DIVIDE:
+                b=2+r.nextInt(8);
+                int qMax=Math.max(1,9/b);
+                int q=1+r.nextInt(qMax);
+                a=q*b;
+                break;
+            default:
+                a=r.nextInt(10);
+                b=r.nextInt(10);
+                break;
+        }
+        int ans=Quiz.answerFor(a,b,op);
+        return new Quiz(a,b,op,makeOptions(r,ans));
+    }
+
     private static Quiz buildQuiz(Random r,int difficulty,int wave,Operation op) {
         int phase=Math.max(1,wave);
         int a,b;
