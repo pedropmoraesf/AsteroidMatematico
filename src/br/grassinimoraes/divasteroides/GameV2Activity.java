@@ -884,16 +884,16 @@ public class GameV2Activity extends Activity {
             int[] rubble=protectedCell
                     ?new int[]{Color.rgb(205,205,195),Color.rgb(150,150,145),Color.rgb(105,105,102),Color.rgb(225,210,185)}
                     :new int[]{Color.rgb(125,108,82),Color.rgb(155,135,100),Color.rgb(90,85,76),Color.LTGRAY};
-            int count=protectedCell?4:2;
+            int count=protectedCell?10:7;
             for(int i=0;i<count;i++){
                 float x=r.left+rnd.nextFloat()*Math.max(1f,r.width());
                 float y=r.top+rnd.nextFloat()*Math.max(1f,r.height());
-                particles.add(new Particle(x,y,-28+rnd.nextFloat()*56,-45-rnd.nextFloat()*65,
-                        .32f+rnd.nextFloat()*.48f,rubble[rnd.nextInt(rubble.length)],1.2f+rnd.nextFloat()*2.8f));
+                particles.add(new Particle(x,y,-55+rnd.nextFloat()*110,-65-rnd.nextFloat()*105,
+                        .48f+rnd.nextFloat()*.68f,rubble[rnd.nextInt(rubble.length)],1.8f+rnd.nextFloat()*3.8f));
             }
         }
 
-        void applyCityImpact(float impactX,float impactY,float amount,float meteorRadius){
+        void applyCityImpact(float impactX,float impactY,float amount,float meteorRadius,int meteorValue){
             if(inv.shieldSeconds>0)return;
             if(citySolid==null||cityDestroyed==null)return;
             float localY=Math.max(0f,Math.min(CITY_BITMAP_H-1f,impactY-CITY_TOP));
@@ -903,6 +903,7 @@ public class GameV2Activity extends Activity {
             int rc=Math.max(1,(int)Math.ceil(radius/damageCellW));
             int rr=Math.max(1,(int)Math.ceil(radius/damageCellH));
             boolean touchedProtected=false;
+            int removedCells=0;
             for(int row=Math.max(0,centerR-rr);row<=Math.min(damageRows-1,centerR+rr);row++){
                 for(int col=Math.max(0,centerC-rc);col<=Math.min(damageCols-1,centerC+rc);col++){
                     float cx=(col+.5f)*damageCellW;
@@ -911,14 +912,19 @@ public class GameV2Activity extends Activity {
                     if(dx*dx+dy*dy>radius*radius)continue;
                     if(!citySolid[row][col]||cityDestroyed[row][col])continue;
                     cityDestroyed[row][col]=true;
+                    removedCells++;
                     boolean protectedCell=protectedCells!=null&&protectedCells[row][col];
                     touchedProtected|=protectedCell;
                     eraseRuntimeCell(row,col);
                     spawnCellDebris(row,col,protectedCell);
                 }
             }
+            if(removedCells>0){
+                burst(impactX,impactY,Color.LTGRAY,Math.min(34,12+removedCells*2));
+            }
             if(touchedProtected&&inv.shieldSeconds<=0&&!protectedSiteDestroyed){
-                protectedSiteHealth=Math.max(0f,protectedSiteHealth-Math.max(8f,amount*1.8f));
+                float targetDamage=Math.max(6f,Math.min(55f,meteorValue*.55f));
+                protectedSiteHealth=Math.max(0f,protectedSiteHealth-targetDamage);
                 if(protectedSiteHealth<=0)destroyProtectedSite();
             }
         }
@@ -1189,13 +1195,30 @@ public class GameV2Activity extends Activity {
         }
 
         void spawnMeteor(){
-            Meteor m=new Meteor();m.x=45+rnd.nextInt(710);m.y=-30;m.speed=waves.meteorSpeed()*(.85f+rnd.nextFloat()*.35f);m.radius=20;
+            Meteor m=new Meteor();m.y=-30;m.speed=waves.meteorSpeed()*(.85f+rnd.nextFloat()*.35f);m.radius=20;
             float roll=rnd.nextFloat();
             if(roll<waves.bonusChance())setupBonus(m);
             else if(roll<waves.bonusChance()+waves.specialChance()){
                 boolean mult=rnd.nextBoolean();m.kind=mult?Kind.MULT:Kind.ADD;m.quiz=MeteorMathV2.generateQuiz(rnd,mult,waves.wave);m.value=m.quiz.answer;m.originalValue=m.value;m.radius=22;audio.play(mult?"meteoro_multiplicacao.wav":"meteoro_adicao.wav");
-            }else{m.kind=Kind.NORMAL;boolean largePrime=waves.allowLargePrime()&&inv.subtractorCharge>0;m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),inv.highestDivisor(),largePrime);m.originalValue=m.value;}
-            meteors.add(m);if(rnd.nextFloat()<.24f)audio.play("meteoro_entrada.wav");
+            }else{
+                m.kind=Kind.NORMAL;
+                boolean largePrime=waves.allowLargePrime()&&inv.subtractorCharge>0;
+                m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),inv.highestDivisor(),largePrime);
+                m.originalValue=m.value;
+            }
+
+            boolean canPrefer=m.kind!=Kind.BONUS&&protectedSiteActive()&&!protectedSiteDestroyed;
+            float preferChance=Math.min(.44f,.28f+waves.wave*.006f);
+            if(canPrefer&&rnd.nextFloat()<preferChance){
+                RectF target=protectedBoundsWorld();
+                float spread=Math.max(24f,target.width()*.65f);
+                m.x=Math.max(30f,Math.min(770f,target.centerX()+(rnd.nextFloat()-.5f)*spread));
+            }else{
+                m.x=45+rnd.nextInt(710);
+            }
+
+            meteors.add(m);
+            if(rnd.nextFloat()<.24f)audio.play("meteoro_entrada.wav");
         }
 
         void setupBonus(Meteor m){
@@ -1303,7 +1326,7 @@ public class GameV2Activity extends Activity {
                         damageCity(3,m.x,false);
                     }else{
                         float impact=Math.min(18,4+m.value/18f);
-                        applyCityImpact(m.x,collisionY,impact,m.radius);
+                        applyCityImpact(m.x,collisionY,impact,m.radius,m.originalValue);
                         damageCity(impact,m.x,false);
                     }
                     m.dead=true;
