@@ -96,6 +96,22 @@ public class GameLogicTest {
         assertFalse(WaveManager.hitsMeteor(100f,100f,20f,125f,125f,1));
     }
 
+    @Test public void rendaDoMeteoroNuncaPassaDoValorOriginal() {
+        assertEquals(80,WaveManager.meteorHitIncome(80,0,80));
+        assertEquals(20,WaveManager.meteorHitIncome(80,60,40));
+        assertEquals(0,WaveManager.meteorHitIncome(80,80,40));
+        assertEquals(0,WaveManager.meteorHitIncome(80,100,40));
+        assertEquals(7,WaveManager.meteorHitIncome(80,73,200));
+    }
+
+    @Test public void recompensaDoMonumentoCresceEApenalidadeRespeitaDificuldade() {
+        assertEquals(79,WaveManager.monumentFullBonus(2));
+        assertEquals(91,WaveManager.monumentFullBonus(3));
+        assertEquals(21,WaveManager.monumentPenalty(0,2));
+        assertEquals(96,WaveManager.monumentPenalty(5,2));
+        assertTrue(WaveManager.monumentPenalty(5,10)>WaveManager.monumentPenalty(1,10));
+    }
+
     @Test public void meteorosClassicosIniciaisSaoResolutiveisComDoisETres() {
         Random r=new Random(12345);
         for(int i=0;i<300;i++){

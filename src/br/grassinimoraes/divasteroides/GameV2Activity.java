@@ -147,11 +147,21 @@ public class GameV2Activity extends Activity {
         }
     }
 
+    static final class HudNotice {
+        final String text;
+        final int color;
+        float life;
+        final float maxLife;
+        HudNotice(String text,int color,float life){
+            this.text=text;this.color=color;this.life=life;this.maxLife=life;
+        }
+    }
+
     enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
     enum Bonus { AMMO, HYPER, MONEY, HEALTH, SHIELD, BOMB0 }
 
     static final class Meteor {
-        float x,y,radius,speed; int value, originalValue; Kind kind; Bonus bonus; int ammoValue;
+        float x,y,radius,speed; int value, originalValue, rewardCap, moneyEarned; Kind kind; Bonus bonus; int ammoValue;
         MeteorMathV2.Quiz quiz; boolean dead, targetBlink; float blinkTime, tailTimer;
         RectF bounds(){return new RectF(x-radius,y-radius,x+radius,y+radius);}
     }
@@ -188,6 +198,7 @@ public class GameV2Activity extends Activity {
         final List<Meteor> meteors=new ArrayList<Meteor>();
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
+        final List<HudNotice> hudNotices=new ArrayList<HudNotice>();
         final List<PlaneFragment> planeDebris=new ArrayList<PlaneFragment>();
         final Set<String> usedQuizExpressions=new HashSet<String>();
         final List<Integer> phaseAmmoPlan=new ArrayList<Integer>();
@@ -255,7 +266,7 @@ public class GameV2Activity extends Activity {
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
         long aimDownTime=0L;
         int aimTargetIndex=0,shotProjectileIndex=0,chargedProjectileValue=2;
-        boolean aimCharged=false,shotWasCharged=false;
+        boolean aimCharged=false,shotWasCharged=false,shotHyper=false;
         float projectileParticleTimer=0f,hudChargeFlashTimer=0f;
         int shotProjectileValue=2;
         int manualPage=0;
@@ -340,7 +351,7 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
             cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
@@ -348,7 +359,7 @@ public class GameV2Activity extends Activity {
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
+            aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
             protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=WaveManager.targetForWave(1);waves.difficulty=selectedDifficulty;
@@ -366,19 +377,35 @@ public class GameV2Activity extends Activity {
 
         void beginNextWave(){
             running=false;preWave=true;paused=false;waveClear=false;intermission=false;preWaveTimer=PRE_WAVE_DURATION;cannonDeploy=0;cannonAngle=-45f;
-            aiming=false;aimTargetTimer=0;aimCharge=0;aimCharged=false;hudChargeFlashTimer=0;dirtParticleTimer=0;
+            aiming=false;aimTargetTimer=0;aimCharge=0;aimCharged=false;shotHyper=false;hudChargeFlashTimer=0;dirtParticleTimer=0;
             preparePhase();
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
 
-        String phaseCityName(){
+        String phaseCityNameFor(int phase){
             String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","CAMPOS DOS GOYTACAZES","BELEM","SAO LUIS","TERESINA","NATAL","JOAO PESSOA","MACEIO","ARACAJU","CUIABA","GOIANIA","VITORIA","FLORIANOPOLIS","CAMPO GRANDE","PALMAS","BRASILIA"};
-            return names[Math.max(1,Math.min(25,waves.wave))];
+            return names[Math.max(1,Math.min(25,phase))];
+        }
+
+        String phaseCityName(){
+            return phaseCityNameFor(waves.wave);
         }
 
         String phaseObjective(){
             if(waves.wave<=1)return "A CIDADE DEVE SOBREVIVER";
             return "O "+protectedSiteName()+" DEVE SOBREVIVER";
+        }
+
+        String phaseTrainingTip(){
+            switch(waves.wave){
+                case 1:return subtractionMechanic?"TREINO: REDUZA O VALOR DOS METEOROS COM OS SUBTRATORES":"TREINO: DIVIDA O VALOR ATE DESTRUIR O METEORO";
+                case 2:return subtractionMechanic?"NOVO FOCO: COMPRE A ARMA 4 E PROTEJA O MONUMENTO":"NOVO FOCO: PROTEJA O MONUMENTO E USE O NOVO DIVISOR";
+                case 3:return subtractionMechanic?"MUNICAO CAI DO CEU: ATIRE NO BONUS PARA RECEBER +2":"BONUS E RECURSOS PASSAM A SER MAIS IMPORTANTES";
+                case 4:return "ECONOMIA: O SALDO E COMPARTILHADO ENTRE REPARO E ARMAS";
+                case 5:return "ARMA H: DESTRUICAO INSTANTANEA DE UM METEORO";
+                case 6:return "BOMBA x0: CARA, MAS LIMPA A TELA E FACILITA OS QUIZZES";
+                default:return "PLANEJE O SALDO: MUNICAO, H, x0 E DEFESA DA CIDADE";
+            }
         }
 
         int scheduledDivisorForPhase(){
@@ -793,13 +820,15 @@ public class GameV2Activity extends Activity {
             if(!subtractionMechanic)return;
             int weapon=nextPurchasableWeapon();
             if(weapon<=2)return;
-            if(inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;return;}
+            if(inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;addHudNotice("ARMA "+weapon+" SELECIONADA",Color.CYAN);return;}
             int cost=weaponPurchaseCost(weapon);
-            if(inv.money<cost)return;
+            if(inv.money<cost){addHudNotice("SALDO INSUFICIENTE PARA ARMA "+weapon,Color.RED);return;}
             inv.money-=cost;
             int unlockPhase=weaponUnlockPhase(weapon);
-            inv.unlockWeapon(weapon,3*targetForPhase(unlockPhase));
+            int initial=3*targetForPhase(unlockPhase);
+            inv.unlockWeapon(weapon,initial);
             inv.selectedWeapon=weapon;
+            addHudNotice("-R$ "+cost+"  ARMA "+weapon+" +"+initial,Color.YELLOW);
             audio.play("municao_desbloqueada.wav");
         }
 
@@ -808,23 +837,26 @@ public class GameV2Activity extends Activity {
             int weapon=shopAmmoWeapon();
             if(weapon<=2||!inv.hasWeapon(weapon))return;
             int cost=ammoPackCost(weapon);
-            if(inv.money<cost)return;
+            if(inv.money<cost){addHudNotice("SALDO INSUFICIENTE PARA MUNICAO",Color.RED);return;}
             inv.money-=cost;
             inv.addWeaponAmmo(weapon,2);
+            addHudNotice("-R$ "+cost+"  MUNICAO "+weapon+" +2",Color.YELLOW);
             audio.play("bonus_municao.wav");
         }
 
         void buyHyper(){
-            if(inv.money<SHOP_H_COST)return;
+            if(inv.money<SHOP_H_COST){addHudNotice("SALDO INSUFICIENTE PARA H",Color.RED);return;}
             inv.money-=SHOP_H_COST;
             inv.addHyper(1);
+            addHudNotice("-R$ "+SHOP_H_COST+"  H +1",Color.CYAN);
             audio.play("bonus_municao.wav");
         }
 
         void buyBomb(){
-            if(inv.money<SHOP_BOMB_COST)return;
+            if(inv.money<SHOP_BOMB_COST){addHudNotice("SALDO INSUFICIENTE PARA x0",Color.RED);return;}
             inv.money-=SHOP_BOMB_COST;
             inv.bombZero++;
+            addHudNotice("-R$ "+SHOP_BOMB_COST+"  x0 +1",Color.rgb(255,150,110));
             audio.play("bonus_municao.wav");
         }
 
@@ -835,6 +867,7 @@ public class GameV2Activity extends Activity {
             if(!hasTarget){audio.play("divisao_errada.wav");return;}
             inv.bombZero--;
             bombSequence=true;bombSequenceTimer=1.05f;bombFlashTimer=BOMB_FLASH_DURATION;
+            addHudNotice("BOMBA x0 ACIONADA",Color.rgb(255,150,110));
             audio.play("bomba_zero.wav");
             for(Meteor m:meteors)if(!m.dead){m.targetBlink=true;m.blinkTime=0;}
         }
@@ -853,7 +886,7 @@ public class GameV2Activity extends Activity {
                     // A x0 não elimina quiz: reduz a conta para operandos de um algarismo.
                     m.quiz=MeteorMathV2.simplifyQuizToOneDigit(rnd,m.quiz,usedQuizExpressions);
                     m.value=m.quiz.answer;
-                    m.originalValue=m.value;
+                    addHudNotice("x0: QUIZ REDUZIDO PARA 1 ALGARISMO",Color.CYAN);
                     burst(m.x,m.y,Color.CYAN,14);
                 }else if(m.kind==Kind.BONUS){
                     // Bônus atingidos pela x0 são creditados normalmente.
@@ -965,6 +998,37 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        void addHudNotice(String text,int color){
+            if(text==null||text.length()==0)return;
+            hudNotices.add(0,new HudNotice(text,color,1.65f));
+            while(hudNotices.size()>4)hudNotices.remove(hudNotices.size()-1);
+        }
+
+        void updateHudNotices(float dt){
+            Iterator<HudNotice> it=hudNotices.iterator();
+            while(it.hasNext()){
+                HudNotice n=it.next();
+                n.life-=dt;
+                if(n.life<=0)it.remove();
+            }
+        }
+
+        void drawHudNotices(Canvas c){
+            int shown=0;
+            for(HudNotice n:hudNotices){
+                if(shown>=3)break;
+                float t=Math.max(0f,Math.min(1f,n.life/n.maxLife));
+                int alpha=Math.max(0,Math.min(255,Math.round(255f*Math.min(1f,t*2f))));
+                int base=n.color;
+                int col=Color.argb(alpha,Color.red(base),Color.green(base),Color.blue(base));
+                float y=96+shown*20;
+                p.setColor(Color.argb(Math.min(150,alpha),0,0,0));
+                c.drawRect(250,y-15,550,y+4,p);
+                drawText(c,n.text,400,y,12,col,true);
+                shown++;
+            }
+        }
+
         void updateUiParticles(float dt){
             Iterator<Particle> it=uiParticles.iterator();
             while(it.hasNext()){
@@ -978,19 +1042,19 @@ public class GameV2Activity extends Activity {
             if(shotTimer<=0)return;
             projectileParticleTimer-=dt;
             if(projectileParticleTimer>0)return;
-            projectileParticleTimer=shotWasCharged?.012f:.022f;
+            projectileParticleTimer=shotHyper?.008f:shotWasCharged?.012f:.022f;
             float t=1f-shotTimer/shotDuration;t=Math.max(0,Math.min(1,t));
             float x=shotStartX+(shotTargetX-shotStartX)*t;
             float y=shotStartY+(shotTargetY-shotStartY)*t;
             float dx=shotTargetX-shotStartX,dy=shotTargetY-shotStartY;
             float len=(float)Math.sqrt(dx*dx+dy*dy);if(len<1)len=1;
             float ux=dx/len,uy=dy/len;
-            int count=shotWasCharged?5:2;
+            int count=shotHyper?8:shotWasCharged?5:2;
             for(int i=0;i<count;i++){
                 float side=-5+rnd.nextFloat()*10;
                 float px=x-ux*(4+rnd.nextFloat()*10)-uy*side;
                 float py=y-uy*(4+rnd.nextFloat()*10)+ux*side;
-                int col=shotWasCharged?(rnd.nextBoolean()?Color.CYAN:Color.WHITE):Color.rgb(185,215,235);
+                int col=shotHyper?(rnd.nextBoolean()?Color.WHITE:Color.CYAN):shotWasCharged?(rnd.nextBoolean()?Color.CYAN:Color.WHITE):Color.rgb(185,215,235);
                 particles.add(new Particle(px,py,-ux*(20+rnd.nextFloat()*25)-uy*side*2,-uy*(20+rnd.nextFloat()*25)+ux*side*2,.16f+rnd.nextFloat()*.22f,col,1.0f+rnd.nextFloat()*2.1f));
             }
             if(shotWasCharged){
@@ -1007,6 +1071,21 @@ public class GameV2Activity extends Activity {
             if(waves.wave<=1||protectedCells==null)return false;
             for(int r=0;r<damageRows;r++)for(int c=0;c<damageCols;c++)if(protectedCells[r][c])return true;
             return false;
+        }
+
+        float protectedRewardFraction(){
+            if(!protectedSiteActive())return 0f;
+            float physical=protectedSiteRemainingFraction();
+            return Math.max(0f,Math.min(physical,protectedSiteHealth/100f));
+        }
+
+        int projectedProtectedReward(){
+            if(!protectedSiteActive()||protectedSiteDestroyed)return 0;
+            return Math.max(0,Math.round(WaveManager.monumentFullBonus(waves.wave)*protectedRewardFraction()));
+        }
+
+        int projectedProtectedPenalty(){
+            return Math.min(inv.money,WaveManager.monumentPenalty(selectedDifficulty,waves.wave));
         }
 
         float protectedSiteRemainingFraction(){
@@ -1151,6 +1230,7 @@ public class GameV2Activity extends Activity {
         }
 
         void update(float dt){
+            updateHudNotices(dt);
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);updatePlaneDebris(dt);return;}
             if(intermission){updateParticles(dt);updatePlaneDebris(dt);return;}
@@ -1160,7 +1240,7 @@ public class GameV2Activity extends Activity {
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
             else if(shotTimer<=0&&!aiming)cannonAngle=-45f;
             if(shotTimer>0){updateProjectileEffects(dt);shotTimer=Math.max(0,shotTimer-dt);}
-            else shotWasCharged=false;
+            else{shotWasCharged=false;shotHyper=false;}
             if(!aiming&&aimTargetTimer>0)aimTargetTimer=Math.max(0,aimTargetTimer-dt);
             if(hudChargeFlashTimer>0)hudChargeFlashTimer=Math.max(0,hudChargeFlashTimer-dt);
             updateUiParticles(dt);
@@ -1204,16 +1284,17 @@ public class GameV2Activity extends Activity {
             if(waves.complete()&&meteors.isEmpty()&&military==null&&(!subtractionMechanic||phaseAmmoDropIndex>=phaseAmmoPlan.size())){
                 audio.play("fase_concluida.wav");
                 if(protectedSiteActive()&&!protectedSiteBonusAwarded){
-                    float physicalRemaining=protectedSiteRemainingFraction();
-                    float remaining=Math.max(0f,Math.min(physicalRemaining,protectedSiteHealth/100f));
+                    float remaining=protectedRewardFraction();
                     if(protectedSiteDestroyed||remaining<=0f){
-                        int loss=Math.min(inv.money,15+selectedDifficulty*15+waves.wave*3);
+                        int loss=projectedProtectedPenalty();
                         inv.money-=loss;
                         lastProtectedBonus=-loss;
+                        addHudNotice(loss>0?"MONUMENTO -R$ "+loss:"MONUMENTO DESTRUIDO",Color.RED);
                     }else{
-                        int fullBonus=55+waves.wave*12;
+                        int fullBonus=WaveManager.monumentFullBonus(waves.wave);
                         lastProtectedBonus=Math.max(1,Math.round(fullBonus*remaining));
                         inv.money+=lastProtectedBonus;
+                        addHudNotice("MONUMENTO +R$ "+lastProtectedBonus,Color.YELLOW);
                     }
                     protectedSiteBonusAwarded=true;
                 }else lastProtectedBonus=0;
@@ -1332,16 +1413,16 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
+            aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
-            waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
+            waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",WaveManager.targetForWave(waves.wave)));
             selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
             subtractionMechanic=sp.getBoolean("subtractionMechanic",subtractionMechanic);
             cityHealth=Math.max(.1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
@@ -1383,9 +1464,9 @@ public class GameV2Activity extends Activity {
         }
 
         void returnToMainMenu(){
-            running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
-            cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
+            running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;
+            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;shotHyper=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
 
@@ -1431,6 +1512,11 @@ public class GameV2Activity extends Activity {
                     m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),inv.highestDivisor(),largePrime);
                 }
                 m.originalValue=m.value;
+            }
+
+            if(m.kind!=Kind.BONUS){
+                m.rewardCap=Math.max(0,m.originalValue);
+                m.moneyEarned=0;
             }
 
             boolean canPrefer=m.kind!=Kind.BONUS&&protectedSiteActive()&&!protectedSiteDestroyed;
@@ -1673,6 +1759,7 @@ public class GameV2Activity extends Activity {
             shotStartY=cy+(float)Math.sin(rad)*muzzleOffset;
             shotProjectileIndex=Math.max(0,Math.min(7,projectileIndex));
             shotWasCharged=aimCharged&&selectedMode==0;
+            shotHyper=selectedMode==1;
             shotProjectileValue=chargedProjectileValue;
             projectileParticleTimer=0f;
             cannonAnim=.40f;shotTimer=shotDuration;shotTargetX=aimX;shotTargetY=aimY;
@@ -1719,11 +1806,19 @@ public class GameV2Activity extends Activity {
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
 
-            // Todo disparo que efetivamente acerta um meteoro rende seu valor corrente.
-            inv.money+=Math.max(0,hit.value);
+            // O total de dinheiro obtido de um mesmo meteoro nunca excede
+            // o valor que ele tinha ao entrar na fase.
+            int income=WaveManager.meteorHitIncome(hit.rewardCap,hit.moneyEarned,hit.value);
+            if(income>0){
+                hit.moneyEarned+=income;
+                inv.money+=income;
+                addHudNotice("+R$ "+income+"  METEORO",Color.YELLOW);
+            }
 
             if(selectedMode==1){
-                burst(hit.x,hit.y,Color.WHITE,16);
+                burst(hit.x,hit.y,Color.WHITE,34);
+                burst(hit.x,hit.y,Color.CYAN,22);
+                addHudNotice("H: DESTRUICAO TOTAL DO ALVO",Color.CYAN);
                 explode(hit,true,false);
                 return;
             }
@@ -1769,17 +1864,27 @@ public class GameV2Activity extends Activity {
                 case AMMO:
                     if(subtractionMechanic){
                         inv.addWeaponAmmo(m.ammoValue,2);
+                        addHudNotice("MUNICAO "+m.ammoValue+" +2",Color.YELLOW);
                         audio.play("bonus_municao.wav");
                     }else{
-                        if(inv.unlockDivisor(m.ammoValue))audio.play("municao_desbloqueada.wav");
+                        boolean unlocked=inv.unlockDivisor(m.ammoValue);
+                        addHudNotice(unlocked?"DIVISOR "+m.ammoValue+" LIBERADO":"DIVISOR "+m.ammoValue+" JA DISPONIVEL",Color.YELLOW);
+                        if(unlocked)audio.play("municao_desbloqueada.wav");
                         else audio.play("bonus_municao.wav");
                     }
                     break;
-                case HYPER:inv.addHyper(1);audio.play("bonus_municao.wav");break;
-                case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;
-                case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;
-                case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;
-                case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;
+                case HYPER:
+                    inv.addHyper(1);addHudNotice("ARMA H +1",Color.CYAN);audio.play("bonus_municao.wav");break;
+                case MONEY:
+                    inv.money+=m.value;addHudNotice("+R$ "+m.value+"  BONUS",Color.YELLOW);audio.play("bonus_dinheiro.wav");break;
+                case HEALTH:
+                    float before=cityHealth;cityHealth=Math.min(100,cityHealth+m.value);
+                    addHudNotice("CIDADE +"+Math.round(cityHealth-before)+"%",Color.GREEN);audio.play("bonus_saude.wav");break;
+                case SHIELD:
+                    inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;
+                    addHudNotice("ESCUDO 10s",Color.CYAN);audio.play("bonus_escudo.wav");break;
+                case BOMB0:
+                    inv.bombZero++;addHudNotice("BOMBA x0 +1",Color.rgb(255,150,110));audio.play("bonus_municao.wav");break;
             }
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
@@ -1797,7 +1902,6 @@ public class GameV2Activity extends Activity {
                 if(quizAttempts>=2){
                     quizMeteor.kind=Kind.NORMAL;
                     quizMeteor.value=quizMeteor.quiz.answer;
-                    quizMeteor.originalValue=quizMeteor.value;
                     quizMeteor.quiz=null;
                     quizOpen=false;quizMeteor=null;
                 }
@@ -1925,6 +2029,7 @@ public class GameV2Activity extends Activity {
                     drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
                 }
                 drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
+                drawText(c,phaseTrainingTip(),400,315,11,Color.LTGRAY,true);
             }
 
             if(waveClear){
@@ -1954,6 +2059,7 @@ public class GameV2Activity extends Activity {
                 drawText(c,"Pontos: "+score,400,245,24,Color.WHITE,true);
                 drawMenuButton(c,new RectF(305,280,495,330),"REINICIAR",true);
             }
+            drawHudNotices(c);
         }
 
         void drawPauseMenu(Canvas c){
@@ -1974,36 +2080,46 @@ public class GameV2Activity extends Activity {
             drawDarkCard(c,62,20,738,452);
             p.setColor(Color.rgb(72,94,54));c.drawRect(72,30,728,72,p);
             drawText(c,"BRIEFING MILITAR // OPERACAO ESCUDO",400,58,23,Color.rgb(235,235,190),true);
-            drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/2",400,84,11,Color.LTGRAY,true);
+            drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/3",400,84,11,Color.LTGRAY,true);
 
             if(manualPage==0){
-                drawText(c,"DUAS MECANICAS",92,112,14,Color.YELLOW,false);
-                drawText(c,"SUBTRACAO: 2, 4, 8, 16, 32, 64 e 128 reduzem o valor do meteoro.",92,134,11,Color.WHITE,false);
-                drawText(c,"A arma 2 e infinita; as demais consomem municao. H destrói de imediato.",92,154,11,Color.WHITE,false);
-                drawText(c,"DIVISORES: preserva a mecanica classica 2, 3, 5, 7, 11, 13 e 17.",92,174,11,Color.WHITE,false);
-                drawText(c,"A mecanica e escolhida em OPCOES antes de iniciar/carregar.",92,194,11,Color.LTGRAY,false);
-
-                drawText(c,"ECONOMIA E DEFESA",92,222,14,Color.YELLOW,false);
-                drawText(c,"Acertos em meteoros normais rendem dinheiro conforme o valor atingido.",92,244,11,Color.WHITE,false);
-                drawText(c,"REPARAR custa 10% do dinheiro atual e recupera 10% da cidade.",92,264,11,Color.WHITE,false);
-                drawText(c,"Municao pode cair do ceu (+2) ou ser comprada entre fases.",92,284,11,Color.WHITE,false);
-                drawText(c,"O monumento preservado rende dinheiro proporcional a vida restante.",92,304,11,Color.WHITE,false);
-                drawText(c,"Se for destruido, ha perda de dinheiro maior nas dificuldades altas.",92,324,11,Color.LTGRAY,false);
-                drawText(c,"Destrocos do aviao comercial tambem podem atingir a cidade.",92,346,11,Color.LTGRAY,false);
-                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ E DIFICULDADE >",false);
+                drawText(c,"COMBATE E ARSENAL",92,112,14,Color.YELLOW,false);
+                drawText(c,"SUBTRACAO: 2, 4, 8, 16, 32, 64 e 128 reduzem o valor do meteoro.",92,136,11,Color.WHITE,false);
+                drawText(c,"A arma 2 tem municao infinita; as demais usam cargas limitadas.",92,158,11,Color.WHITE,false);
+                drawText(c,"DIVISORES: 2, 3, 5, 7, 11, 13 e 17 preservam a mecanica classica.",92,180,11,Color.WHITE,false);
+                drawText(c,"H custa R$ "+SHOP_H_COST+" e destrói instantaneamente um meteoro atingido.",92,208,11,Color.CYAN,false);
+                drawText(c,"x0 custa R$ "+SHOP_BOMB_COST+" e elimina meteoros normais e coleta bonus da tela.",92,230,11,Color.WHITE,false);
+                drawText(c,"A x0 NAO destrói quiz: ela reduz a conta para operandos de 1 algarismo.",92,252,11,Color.YELLOW,false);
+                drawText(c,"MIRA: MUITO FACIL +30%, FACIL +25%, MEDIO +20%, DIFICIL +15%.",92,280,10,Color.LTGRAY,false);
+                drawText(c,"MUITO DIFICIL +10%; INSANO usa somente o tamanho real do meteoro.",92,300,10,Color.LTGRAY,false);
+                drawText(c,"A dificuldade tambem aumenta velocidade, valores e pressao dos quizzes.",92,326,10,Color.WHITE,false);
+                drawMenuButton(c,new RectF(475,382,690,421),"ECONOMIA >",false);
+            }else if(manualPage==1){
+                drawText(c,"ECONOMIA E DEFESA",92,112,14,Color.YELLOW,false);
+                drawText(c,"Cada acerto pode render dinheiro, mas cada meteoro tem um teto total.",92,136,11,Color.WHITE,false);
+                drawText(c,"Esse teto e o valor original do meteoro: tiros fracos nao geram renda infinita.",92,158,11,Color.LTGRAY,false);
+                drawText(c,"REPARAR custa 10% do saldo atual e recupera 10% da cidade.",92,186,11,Color.WHITE,false);
+                drawText(c,"Cada fase e outra cidade: a nova cidade sempre comeca em 100%.",92,208,11,Color.WHITE,false);
+                drawText(c,"Municao pode cair do ceu (+2) ou ser comprada no intervalo.",92,230,11,Color.WHITE,false);
+                drawText(c,"O HUD mostra em tempo real quanto o monumento ainda pode render.",92,258,11,Color.CYAN,false);
+                drawText(c,"Se o monumento for destruido, pode haver perda de dinheiro por dificuldade.",92,280,10,Color.LTGRAY,false);
+                drawText(c,"Destrocos do aviao comercial podem atingir e danificar a cidade.",92,302,10,Color.LTGRAY,false);
+                drawText(c,"No intervalo, o mesmo saldo disputa arma, municao, H e x0.",92,326,11,Color.YELLOW,false);
+                drawMenuButton(c,new RectF(110,382,325,421),"< COMBATE",false);
+                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ >",false);
             }else{
-                drawText(c,"QUIZ - TODAS AS OPERACOES DESDE A FASE 1",92,112,14,Color.YELLOW,false);
-                drawText(c,"Sao usados +, -, x e /. As contas nao se repetem na mesma partida.",92,136,11,Color.WHITE,false);
-                drawText(c,"Divisoes sao exatas; subtracoes nunca resultam em numero negativo.",92,156,11,Color.LTGRAY,false);
-                drawText(c,"FACIL: x e / nas unidades; + e - ate dezenas.",92,184,11,Color.WHITE,false);
-                drawText(c,"MEDIO: primeiro termo de x e / com 2 algarismos; + e - nas centenas.",92,206,11,Color.WHITE,false);
-                drawText(c,"DIFICIL: primeiro termo de x e / nas centenas; + e - nos milhares.",92,228,11,Color.WHITE,false);
-                drawText(c,"MUITO DIFICIL: x e / nos milhares; + e - nas dezenas de milhares.",92,250,11,Color.WHITE,false);
-                drawText(c,"INSANO: numeros maiores, mantendo multiplicador/divisor de 1 algarismo.",92,272,11,Color.WHITE,false);
-                drawText(c,"A dificuldade cresce tambem dentro de cada faixa conforme as fases.",92,294,11,Color.LTGRAY,false);
-                drawText(c,"Se um meteoro de quiz atingir a cidade, ela perde metade da vida atual.",92,322,11,Color.RED,false);
-                drawText(c,"Responder certo chama o ataque aereo militar contra o meteoro.",92,344,11,Color.CYAN,false);
-                drawMenuButton(c,new RectF(110,382,325,421),"< BRIEFING",false);
+                drawText(c,"QUIZ E DIFICULDADE",92,112,14,Color.YELLOW,false);
+                drawText(c,"Desde a fase 1 podem aparecer +, -, x e /. A mesma conta nao se repete.",92,136,11,Color.WHITE,false);
+                drawText(c,"Divisoes sao exatas e subtracoes nunca resultam em numero negativo.",92,158,11,Color.LTGRAY,false);
+                drawText(c,"MUITO FACIL: contas menores e a maior tolerancia de mira.",92,184,11,Color.WHITE,false);
+                drawText(c,"FACIL: x e / nas unidades; + e - ate dezenas.",92,206,11,Color.WHITE,false);
+                drawText(c,"MEDIO: primeiro termo de x e / com 2 algarismos; + e - nas centenas.",92,228,10,Color.WHITE,false);
+                drawText(c,"DIFICIL: primeiro termo de x e / nas centenas; + e - nos milhares.",92,250,10,Color.WHITE,false);
+                drawText(c,"MUITO DIFICIL: x e / nos milhares; + e - nas dezenas de milhares.",92,272,10,Color.WHITE,false);
+                drawText(c,"INSANO: numeros maiores e mira sem tolerancia extra.",92,294,10,Color.WHITE,false);
+                drawText(c,"Quiz que atinge a cidade tira metade da saude atual.",92,320,11,Color.RED,false);
+                drawText(c,"Resposta correta chama o ataque aereo militar contra o meteoro.",92,342,11,Color.CYAN,false);
+                drawMenuButton(c,new RectF(110,382,325,421),"< ECONOMIA",false);
             }
             drawMenuButton(c,new RectF(315,423,485,446),"VOLTAR",false);
         }
@@ -2012,7 +2128,7 @@ public class GameV2Activity extends Activity {
             p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
             drawDarkCard(c,145,18,655,378);
             drawText(c,"INTERVALO ENTRE FASES",400,52,24,Color.CYAN,true);
-            drawText(c,"DINHEIRO: R$ "+inv.money,400,82,15,Color.YELLOW,true);
+            drawText(c,"DINHEIRO: R$ "+inv.money+"   H x"+inv.hyperAmmo+"   x0 x"+inv.bombZero,400,82,14,Color.YELLOW,true);
 
             shopWeaponRect.set(205,104,595,139);
             shopAmmoRect.set(205,146,595,181);
@@ -2040,7 +2156,10 @@ public class GameV2Activity extends Activity {
             }
 
             drawMenuButton(c,shopHyperRect,"ARMA H +1   R$ "+SHOP_H_COST,false);
-            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   R$ "+SHOP_BOMB_COST,false);
+            drawMenuButton(c,shopBombRect,"BOMBA x0 +1   R$ "+SHOP_BOMB_COST,false);
+            drawText(c,"SALDO COMPARTILHADO: ARMA / MUNICAO / H / x0",400,288,10,Color.LTGRAY,true);
+            int nextPhase=Math.min(WaveManager.MAX_WAVE,waves.wave+1);
+            drawText(c,"PROXIMA CIDADE: "+phaseCityNameFor(nextPhase)+"   META "+targetForPhase(nextPhase),400,306,10,Color.CYAN,true);
             drawMenuButton(c,shopNextRect,"PROXIMA FASE",true);
         }
 
@@ -2189,10 +2308,16 @@ public class GameV2Activity extends Activity {
             if(laserEnabled){p.setColor(Color.argb(100,220,245,255));p.setStrokeWidth(1.2f);c.drawLine(shotStartX,shotStartY,shotTargetX,shotTargetY,p);}
             float x=shotStartX+(shotTargetX-shotStartX)*t;
             float y=shotStartY+(shotTargetY-shotStartY)*t;
+            if(shotHyper){
+                float pulse=16f+3f*(float)Math.sin(SystemClock.uptimeMillis()/35.0);
+                p.setColor(Color.argb(80,180,245,255));c.drawCircle(x,y,pulse,p);
+                p.setColor(Color.argb(165,255,255,255));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2f);c.drawCircle(x,y,pulse+4f,p);p.setStyle(Paint.Style.FILL);
+            }
+            float half=shotHyper?16f:10f;
             if(projectileSheet!=null){
-                drawTile(c,projectileSheet,8,1,shotProjectileIndex,new RectF(x-10,y-10,x+10,y+10),pixel);
+                drawTile(c,projectileSheet,8,1,shotProjectileIndex,new RectF(x-half,y-half,x+half,y+half),pixel);
             }else{
-                p.setColor(Color.WHITE);c.drawCircle(x,y,4,p);
+                p.setColor(Color.WHITE);c.drawCircle(x,y,shotHyper?7f:4f,p);
             }
         }
 
@@ -2354,7 +2479,7 @@ public class GameV2Activity extends Activity {
 
             bombRect.set(511,402,575,467);
             p.setColor(Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
-            drawText(c,"BOMBA 0",543,412,8,Color.LTGRAY,true);
+            drawText(c,"BOMBA x0",543,412,8,Color.LTGRAY,true);
             if(bombImg!=null)c.drawBitmap(bombImg,null,new RectF(527,419,559,451),pixel);
             drawText(c,"x"+inv.bombZero,543,463,10,Color.YELLOW,true);
 
@@ -2378,6 +2503,8 @@ public class GameV2Activity extends Activity {
                 p.setColor(Color.rgb(55,22,18));c.drawRect(250,55,480,68,p);
                 p.setColor(protectedSiteHealth>60?Color.CYAN:protectedSiteHealth>30?Color.YELLOW:Color.RED);
                 c.drawRect(250,55,250+230*protectedSiteHealth/100f,68,p);
+                if(protectedSiteDestroyed)drawText(c,"RISCO -R$ "+projectedProtectedPenalty(),490,67,10,Color.RED,false);
+                else drawText(c,"BONUS R$ "+projectedProtectedReward(),490,67,10,Color.YELLOW,false);
             }
 
             if(running&&!preWave&&!gameOver){
@@ -2484,9 +2611,14 @@ public class GameV2Activity extends Activity {
 
             if(subUse.contains(x,y)){selectedMode=1;return true;}
             if(bombRect.contains(x,y)){startBombSequence();return true;}
-            if(repairRect.contains(x,y)&&inv.repair10Percent(cityHealth)){
-                cityHealth=Math.min(100f,cityHealth+10f);
-                audio.play("reconstrucao_cidade.wav");
+            if(repairRect.contains(x,y)){
+                int cost=inv.repairCost10Percent();
+                if(inv.repair10Percent(cityHealth)){
+                    cityHealth=Math.min(100f,cityHealth+10f);
+                    addHudNotice("-R$ "+cost+"  REPARO +10%",Color.GREEN);
+                    audio.play("reconstrucao_cidade.wav");
+                }else if(cityHealth>=100f)addHudNotice("CIDADE JA ESTA 100%",Color.LTGRAY);
+                else addHudNotice("SEM SALDO PARA REPARAR",Color.RED);
                 return true;
             }
             return true;
@@ -2502,9 +2634,11 @@ public class GameV2Activity extends Activity {
 
         void handlePauseTouch(float x,float y){
             if(manualFromPause){
-                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
-                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
-                if(x>=290&&x<=510&&y>=415&&y<=455){manualFromPause=false;manualPage=0;}
+                if(manualPage==0&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=0;return;}
+                if(manualPage==1&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=2;return;}
+                if(manualPage==2&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=1;return;}
+                if(x>=290&&x<=510&&y>=423&&y<=455){manualFromPause=false;manualPage=0;}
                 return;
             }
             for(int i=0;i<pauseButtons.length;i++)if(pauseButtons[i].contains(x,y)){
@@ -2545,9 +2679,11 @@ public class GameV2Activity extends Activity {
                 else if(x>=290&&x<=510&&y>=397&&y<=433)menuPage=MENU_MAIN;
             }
             else if(menuPage==MENU_MANUAL){
-                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
-                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
-                if(x>=290&&x<=510&&y>=415&&y<=455){menuPage=MENU_OPTIONS;manualPage=0;}
+                if(manualPage==0&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=0;return;}
+                if(manualPage==1&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=2;return;}
+                if(manualPage==2&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=1;return;}
+                if(x>=290&&x<=510&&y>=423&&y<=455){menuPage=MENU_OPTIONS;manualPage=0;}
             }
         }
     }

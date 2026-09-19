@@ -49,6 +49,21 @@ final class WaveManager {
         return Math.min(32,8+(p-1)*2);
     }
 
+    static int meteorHitIncome(int rewardCap,int alreadyEarned,int currentValue) {
+        int cap=Math.max(0,rewardCap);
+        int earned=Math.max(0,alreadyEarned);
+        int remaining=Math.max(0,cap-earned);
+        return Math.min(Math.max(0,currentValue),remaining);
+    }
+
+    static int monumentFullBonus(int phase) {
+        return 55+Math.max(1,phase)*12;
+    }
+
+    static int monumentPenalty(int difficulty,int phase) {
+        return 15+Math.max(0,Math.min(5,difficulty))*15+Math.max(1,phase)*3;
+    }
+
     static float hitRadiusMultiplier(int difficulty) {
         switch(Math.max(0,Math.min(5,difficulty))) {
             case 0:return 1.30f; // muito fácil
