@@ -1563,15 +1563,16 @@ public class GameV2Activity extends Activity {
                 drawText(c,"OBJETIVO PRIMARIO",92,112,14,Color.YELLOW,false);
                 drawText(c,"Proteja a cidade. Da Fase 2 em diante, o ponto estrategico tem vida propria.",92,134,12,Color.WHITE,false);
                 drawText(c,"Se o ponto sobreviver, a fase concede bonus de pontuacao.",92,154,12,Color.LTGRAY,false);
-                drawText(c,"CONTROLE DE TIRO",92,178,14,Color.YELLOW,false);
-                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,200,12,Color.WHITE,false);
-                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,222,12,Color.WHITE,false);
-                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,244,12,Color.WHITE,false);
-                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,266,12,Color.WHITE,false);
-                drawText(c,"ARSENAL",92,294,14,Color.YELLOW,false);
-                drawText(c,"7 municoes de divisor: 2, 3, 5, 7, 11, 13 e 17.",92,316,12,Color.WHITE,false);
-                drawText(c,"8o alvo/projetil: SUBTRATOR. Todo disparo consome a carga escolhida.",92,338,12,Color.WHITE,false);
-                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,360,12,Color.WHITE,false);
+                drawText(c,"Meteoros que atingem a cidade NAO contam como abatidos.",92,170,11,Color.LTGRAY,false);
+                drawText(c,"CONTROLE DE TIRO",92,190,14,Color.YELLOW,false);
+                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,210,12,Color.WHITE,false);
+                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,232,12,Color.WHITE,false);
+                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,254,12,Color.WHITE,false);
+                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,276,12,Color.WHITE,false);
+                drawText(c,"ARSENAL",92,302,14,Color.YELLOW,false);
+                drawText(c,"7 municoes: 2, 3, 5, 7, 11, 13 e 17.  8o: SUBTRATOR.",92,324,11,Color.WHITE,false);
+                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,346,11,Color.WHITE,false);
+                drawText(c,"Quanto mais rapido concluir a fase, maior o bonus de tempo.",92,366,11,Color.YELLOW,false);
                 drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
             }else{
                 drawText(c,"PROTOCOLO DE DIVISIBILIDADE",92,112,14,Color.YELLOW,false);
@@ -1989,12 +1990,16 @@ public class GameV2Activity extends Activity {
             }
             else if(menuPage==MENU_SCORE){if(x>=290&&x<=510&&y>=335&&y<=410)menuPage=MENU_MAIN;}
             else if(menuPage==MENU_OPTIONS){
-                if(x>=235&&x<=565&&y>=80&&y<=134){selectedDifficulty=(selectedDifficulty+1)%6;waves.difficulty=selectedDifficulty;}
-                else if(x>=235&&x<=565&&y>=134&&y<=186)laserEnabled=!laserEnabled;
-                else if(x>=235&&x<=565&&y>=186&&y<=238)vibrationEnabled=!vibrationEnabled;
-                else if(x>=235&&x<=565&&y>=238&&y<=290){menuPage=MENU_MANUAL;manualPage=0;}
-                else if(x>=235&&x<=565&&y>=290&&y<=342){getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE).edit().clear().apply();scoreClearedNotice=true;scoreNoticeTimer=1.5f;}
-                else if(x>=290&&x<=510&&y>=365&&y<=430)menuPage=MENU_MAIN;
+                if(x>=235&&x<=565&&y>=70&&y<=115){selectedDifficulty=(selectedDifficulty+1)%6;waves.difficulty=selectedDifficulty;}
+                else if(x>=235&&x<=565&&y>=115&&y<=160)laserEnabled=!laserEnabled;
+                else if(x>=235&&x<=565&&y>=160&&y<=205)vibrationEnabled=!vibrationEnabled;
+                else if(x>=235&&x<=565&&y>=205&&y<=251){
+                    dynamicWeatherEnabled=!dynamicWeatherEnabled;
+                    saveSettings();
+                }
+                else if(x>=235&&x<=565&&y>=268&&y<=313){menuPage=MENU_MANUAL;manualPage=0;}
+                else if(x>=235&&x<=565&&y>=313&&y<=360){getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE).edit().clear().apply();scoreClearedNotice=true;scoreNoticeTimer=1.5f;}
+                else if(x>=290&&x<=510&&y>=384&&y<=434)menuPage=MENU_MAIN;
             }
             else if(menuPage==MENU_MANUAL){
                 if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
