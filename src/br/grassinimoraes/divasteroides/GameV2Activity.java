@@ -147,11 +147,21 @@ public class GameV2Activity extends Activity {
         }
     }
 
+    static final class HudNotice {
+        final String text;
+        final int color;
+        float life;
+        final float maxLife;
+        HudNotice(String text,int color,float life){
+            this.text=text;this.color=color;this.life=life;this.maxLife=life;
+        }
+    }
+
     enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
     enum Bonus { AMMO, HYPER, MONEY, HEALTH, SHIELD, BOMB0 }
 
     static final class Meteor {
-        float x,y,radius,speed; int value, originalValue; Kind kind; Bonus bonus; int ammoValue;
+        float x,y,radius,speed; int value, originalValue, rewardCap, moneyEarned; Kind kind; Bonus bonus; int ammoValue;
         MeteorMathV2.Quiz quiz; boolean dead, targetBlink; float blinkTime, tailTimer;
         RectF bounds(){return new RectF(x-radius,y-radius,x+radius,y+radius);}
     }
@@ -188,6 +198,7 @@ public class GameV2Activity extends Activity {
         final List<Meteor> meteors=new ArrayList<Meteor>();
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
+        final List<HudNotice> hudNotices=new ArrayList<HudNotice>();
         final List<PlaneFragment> planeDebris=new ArrayList<PlaneFragment>();
         final Set<String> usedQuizExpressions=new HashSet<String>();
         final List<Integer> phaseAmmoPlan=new ArrayList<Integer>();
@@ -255,7 +266,7 @@ public class GameV2Activity extends Activity {
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
         long aimDownTime=0L;
         int aimTargetIndex=0,shotProjectileIndex=0,chargedProjectileValue=2;
-        boolean aimCharged=false,shotWasCharged=false;
+        boolean aimCharged=false,shotWasCharged=false,shotHyper=false;
         float projectileParticleTimer=0f,hudChargeFlashTimer=0f;
         int shotProjectileValue=2;
         int manualPage=0;
