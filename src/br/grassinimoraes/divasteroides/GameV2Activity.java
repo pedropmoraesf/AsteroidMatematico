@@ -248,7 +248,7 @@ public class GameV2Activity extends Activity {
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
         int lastProtectedBonus=0;
-        long phasePlayStartMs=0L;
+        float phaseActiveSeconds=0f;
         int phaseTimeBonus=0;
         String phaseClock="12:00";
         boolean phaseDay=true,phaseRain=false,phaseWeatherLoading=false;
@@ -530,7 +530,124 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        double phaseLatitude(){
+            double[] v={0,-22.8268,-22.9068,-23.5505,-19.9167,-12.9777,-8.0476,-3.7319,-25.4284,-30.0346,-3.1190,-21.7622,-1.4558,-2.5307,-5.0919,-5.7945,-7.1195,-9.6498,-10.9472,-15.6014,-16.6869,-20.3155,-27.5954,-20.4697,-10.2491,-15.7939};
+            return v[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        double phaseLongitude(){
+            double[] v={0,-43.0634,-43.1729,-46.6333,-43.9345,-38.5016,-34.8770,-38.5267,-49.2733,-51.2177,-60.0217,-41.3181,-48.4902,-44.3068,-42.8034,-35.2110,-34.8450,-35.7089,-37.0731,-56.0979,-49.2648,-40.3128,-48.5480,-54.6201,-48.3243,-47.8828};
+            return v[Math.max(1,Math.min(25,waves.wave))];
+        }
+
+        boolean rainyWeatherCode(int code){
+            return (code>=51&&code<=67)||(code>=80&&code<=82)||(code>=95&&code<=99);
+        }
+
+        String localDeviceClock(){
+            Calendar c=Calendar.getInstance();
+            return String.format(Locale.US,"%02d:%02d",c.get(Calendar.HOUR_OF_DAY),c.get(Calendar.MINUTE));
+        }
+
+        void setLocalClearEnvironment(){
+            Calendar c=Calendar.getInstance();
+            int hour=c.get(Calendar.HOUR_OF_DAY);
+            phaseClock=localDeviceClock();
+            phaseDay=hour>=6&&hour<18;
+            phaseRain=false;phaseCloudCover=0;phaseWeatherCode=0;phaseWeatherLoading=false;
+        }
+
+        void setWeatherFallback(){
+            phaseClock="12:00";
+            phaseDay=true;
+            phaseRain=false;
+            phaseCloudCover=0;
+            phaseWeatherCode=0;
+            phaseWeatherLoading=false;
+        }
+
+        void capturePhaseEnvironment(){
+            rainTimer=0f;
+            if(!dynamicWeatherEnabled){
+                setLocalClearEnvironment();
+                return;
+            }
+            setWeatherFallback();
+            phaseWeatherLoading=true;
+            final int requestedPhase=waves.wave;
+            final double lat=phaseLatitude(),lon=phaseLongitude();
+            new Thread(new Runnable(){
+                @Override public void run(){
+                    HttpURLConnection conn=null;
+                    try{
+                        String u="https://api.open-meteo.com/v1/forecast?latitude="+lat+
+                                "&longitude="+lon+
+                                "&current=weather_code,is_day,cloud_cover,rain,showers&timezone=auto";
+                        conn=(HttpURLConnection)new URL(u).openConnection();
+                        conn.setConnectTimeout(3500);
+                        conn.setReadTimeout(3500);
+                        conn.setRequestMethod("GET");
+                        BufferedReader br=new BufferedReader(new InputStreamReader(conn.getInputStream(),"UTF-8"));
+                        StringBuilder body=new StringBuilder();
+                        String line;
+                        while((line=br.readLine())!=null)body.append(line);
+                        br.close();
+                        JSONObject current=new JSONObject(body.toString()).getJSONObject("current");
+                        final int code=current.optInt("weather_code",0);
+                        final int isDay=current.optInt("is_day",1);
+                        final int cloud=current.optInt("cloud_cover",0);
+                        final double rain=current.optDouble("rain",0)+current.optDouble("showers",0);
+                        String time=current.optString("time","2026-01-01T12:00");
+                        final String clock=time.length()>=16?time.substring(11,16):"12:00";
+                        post(new Runnable(){
+                            @Override public void run(){
+                                if(waves.wave!=requestedPhase)return;
+                                phaseClock=clock;
+                                phaseDay=isDay==1;
+                                phaseWeatherCode=code;
+                                phaseCloudCover=Math.max(0,Math.min(100,cloud));
+                                phaseRain=rain>0.01||rainyWeatherCode(code);
+                                phaseWeatherLoading=false;
+                            }
+                        });
+                    }catch(Exception ignored){
+                        post(new Runnable(){
+                            @Override public void run(){
+                                if(waves.wave==requestedPhase)setWeatherFallback();
+                            }
+                        });
+                    }finally{
+                        if(conn!=null)conn.disconnect();
+                    }
+                }
+            }).start();
+        }
+
+        String phaseWeatherLabel(){
+            if(!dynamicWeatherEnabled)return "CLIMA LOCAL OFF";
+            if(phaseWeatherLoading)return "CLIMA...";
+            if(phaseRain)return "CHUVA";
+            if(phaseCloudCover>=65)return "NUBLADO";
+            if(phaseCloudCover>=25)return "PARCIAL";
+            return "CEU LIMPO";
+        }
+
+        void updateRain(float dt){
+            if(!phaseRain||(!running&&!preWave))return;
+            rainTimer-=dt;
+            if(rainTimer>0)return;
+            rainTimer=.018f;
+            for(int i=0;i<3;i++){
+                float x=rnd.nextFloat()*800f;
+                float y=-8-rnd.nextFloat()*50f;
+                particles.add(new Particle(x,y,-8+rnd.nextFloat()*16,185+rnd.nextFloat()*55,
+                        1.8f,Color.rgb(145,195,235),1.0f));
+            }
+        }
+
         void preparePhase(){
+            phaseActiveSeconds=0f;phaseTimeBonus=0;
+            capturePhaseEnvironment();
             lastDivisorAcquired=scheduledDivisorForPhase();
             if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
             loadCityForPhase();
