@@ -981,6 +981,7 @@ public class GameV2Activity extends Activity {
             updateAimCharge(dt);
             updatePendingBonus(dt);
             updateProtectedSiteFire(dt);
+            updateRain(dt);
             if(introWhiteFade>0)introWhiteFade=Math.max(0,introWhiteFade-dt);
             if(scoreNoticeTimer>0){scoreNoticeTimer=Math.max(0,scoreNoticeTimer-dt);if(scoreNoticeTimer==0)scoreClearedNotice=false;}
             if(waveClear){
@@ -1004,6 +1005,7 @@ public class GameV2Activity extends Activity {
                 return;
             }
             updateCityFireParticles(dt);updateShield(dt);
+            phaseActiveSeconds+=dt;
             if(gameOver||quizOpen){updateParticles(dt);updateMilitary(dt);return;}
             if(!waves.complete()){
                 spawnTimer-=dt;
@@ -1018,6 +1020,9 @@ public class GameV2Activity extends Activity {
                     score+=lastProtectedBonus;
                     protectedSiteBonusAwarded=true;
                 }else lastProtectedBonus=0;
+                int maxTimeBonus=300+waves.targetThisWave*40+waves.wave*5;
+                phaseTimeBonus=Math.max(0,Math.round(maxTimeBonus-phaseActiveSeconds*4f));
+                score+=phaseTimeBonus;
                 if(cityHealth<100f)audio.play("reconstrucao_cidade.wav");
                 cityHealth=100f;
                 running=false;
