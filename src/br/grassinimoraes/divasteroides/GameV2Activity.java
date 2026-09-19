@@ -1020,6 +1020,76 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        void addWorldMoney(float x,float y,int amount){
+            if(amount<=0)return;
+            worldTexts.add(new WorldText("+R$ "+amount,x,y,Color.rgb(255,190,45),.78f));
+        }
+
+        void updateWorldTexts(float dt){
+            Iterator<WorldText> it=worldTexts.iterator();
+            while(it.hasNext()){
+                WorldText q=it.next();
+                q.life-=dt;
+                if(q.life<=0){it.remove();continue;}
+                q.y-=22f*dt;
+            }
+        }
+
+        void drawWorldTexts(Canvas c){
+            for(WorldText q:worldTexts){
+                float t=Math.max(0f,Math.min(1f,q.life/q.maxLife));
+                int alpha=Math.max(0,Math.min(255,Math.round(255f*t*t)));
+                int col=Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color));
+                p.setAlpha(alpha);
+                drawOutlinedText(c,q.text,q.x,q.y,14,col);
+                p.setAlpha(255);
+            }
+        }
+
+        float pickupHudX(int projectileIndex){
+            int idx=Math.max(0,Math.min(6,projectileIndex));
+            return 14f+idx*52f+22.5f;
+        }
+
+        void startPickupFlight(Meteor m){
+            if(m==null)return;
+            int idx=0;
+            float endX,endY=430f;
+            if(m.bonus==Bonus.HYPER){
+                idx=7;endX=446f;
+            }else{
+                idx=subtractionMechanic?projectileIndexForSubtractor(m.ammoValue):projectileIndexForDivisor(m.ammoValue);
+                endX=pickupHudX(idx);
+            }
+            pickupFlights.add(new PickupFly(m.bonus,idx,m.x,m.y,endX,endY,.42f));
+        }
+
+        void updatePickupFlights(float dt){
+            Iterator<PickupFly> it=pickupFlights.iterator();
+            while(it.hasNext()){
+                PickupFly q=it.next();
+                q.life-=dt;
+                if(q.life<=0)it.remove();
+            }
+        }
+
+        void drawPickupFlights(Canvas c){
+            for(PickupFly q:pickupFlights){
+                float t=1f-Math.max(0f,Math.min(1f,q.life/q.maxLife));
+                float eased=1f-(1f-t)*(1f-t)*(1f-t);
+                float arc=(float)Math.sin(Math.PI*t)*32f;
+                float x=q.startX+(q.endX-q.startX)*eased;
+                float y=q.startY+(q.endY-q.startY)*eased-arc;
+                float half=10f-3f*t;
+                if(projectileSheet!=null){
+                    drawTile(c,projectileSheet,8,1,q.projectileIndex,new RectF(x-half,y-half,x+half,y+half),pixel);
+                }else{
+                    p.setColor(q.bonus==Bonus.HYPER?Color.CYAN:Color.YELLOW);
+                    c.drawCircle(x,y,half*.55f,p);
+                }
+            }
+        }
+
         void addHudNotice(String text,int color){
             if(text==null||text.length()==0)return;
             hudNotices.add(0,new HudNotice(text,color,1.65f));
@@ -1253,6 +1323,8 @@ public class GameV2Activity extends Activity {
 
         void update(float dt){
             updateHudNotices(dt);
+            updateWorldTexts(dt);
+            updatePickupFlights(dt);
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);updatePlaneDebris(dt);return;}
             if(intermission){updateParticles(dt);updatePlaneDebris(dt);return;}
@@ -2040,7 +2112,8 @@ public class GameV2Activity extends Activity {
             if(military!=null)drawPlane(c,military);
             drawCannon(c);drawProjectile(c);
             c.restore();
-            drawAimTarget(c);drawHud(c);drawUiParticles(c);
+            drawWorldTexts(c);
+            drawAimTarget(c);drawHud(c);drawUiParticles(c);drawPickupFlights(c);
 
             if(bombFlashTimer>0f){
                 float t=Math.max(0f,Math.min(1f,bombFlashTimer/BOMB_FLASH_DURATION));
