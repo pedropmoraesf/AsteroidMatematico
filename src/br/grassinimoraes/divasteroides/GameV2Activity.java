@@ -174,7 +174,8 @@ public class GameV2Activity extends Activity {
     final class GameView extends View implements Runnable {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
-        static final int SHOP_H_COST=400, SHOP_BOMB_COST=100;
+        static final float BOMB_FLASH_DURATION=.55f;
+        static final int SHOP_H_COST=400, SHOP_BOMB_COST=800;
         static final int CITY_BITMAP_W=800, CITY_BITMAP_H=220;
         static final float CITY_TOP=170f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
@@ -246,7 +247,7 @@ public class GameV2Activity extends Activity {
         boolean intermission=false;
         boolean manualFromPause=false;
         boolean bombSequence=false;
-        float bombSequenceTimer=0f;
+        float bombSequenceTimer=0f,bombFlashTimer=0f;
         Meteor pendingBonusTarget;
         float pendingBonusTimer=0f;
         int lastDivisorAcquired=0;
@@ -345,7 +346,7 @@ public class GameV2Activity extends Activity {
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
@@ -833,13 +834,14 @@ public class GameV2Activity extends Activity {
             for(Meteor m:meteors)if(!m.dead){hasTarget=true;break;}
             if(!hasTarget){audio.play("divisao_errada.wav");return;}
             inv.bombZero--;
-            bombSequence=true;bombSequenceTimer=1.05f;
+            bombSequence=true;bombSequenceTimer=1.05f;bombFlashTimer=BOMB_FLASH_DURATION;
             audio.play("bomba_zero.wav");
             for(Meteor m:meteors)if(!m.dead){m.targetBlink=true;m.blinkTime=0;}
         }
 
         void updateBombSequence(float dt){
             bombSequenceTimer-=dt;
+            bombFlashTimer=Math.max(0f,bombFlashTimer-dt);
             for(Meteor m:meteors)if(!m.dead)m.blinkTime+=dt;
             if(bombSequenceTimer>0)return;
             bombSequence=false;
@@ -1712,7 +1714,7 @@ public class GameV2Activity extends Activity {
             Meteor hit=null;
             for(int i=meteors.size()-1;i>=0;i--){
                 Meteor m=meteors.get(i);
-                if(!m.dead&&m.bounds().contains(x,y)){hit=m;break;}
+                if(!m.dead&&WaveManager.hitsMeteor(m.x,m.y,m.radius,x,y,selectedDifficulty)){hit=m;break;}
             }
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
@@ -1901,6 +1903,13 @@ public class GameV2Activity extends Activity {
             drawCannon(c);drawProjectile(c);
             c.restore();
             drawAimTarget(c);drawHud(c);drawUiParticles(c);
+
+            if(bombFlashTimer>0f){
+                float t=Math.max(0f,Math.min(1f,bombFlashTimer/BOMB_FLASH_DURATION));
+                int alpha=Math.max(0,Math.min(128,Math.round(128f*t*t)));
+                p.setColor(Color.argb(alpha,255,105,105));
+                c.drawRect(0,0,800,480,p);
+            }
 
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);

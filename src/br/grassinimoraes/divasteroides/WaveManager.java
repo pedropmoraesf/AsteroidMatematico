@@ -49,6 +49,23 @@ final class WaveManager {
         return Math.min(32,8+(p-1)*2);
     }
 
+    static float hitRadiusMultiplier(int difficulty) {
+        switch(Math.max(0,Math.min(5,difficulty))) {
+            case 0:return 1.30f; // muito fácil
+            case 1:return 1.25f; // fácil
+            case 2:return 1.20f; // médio
+            case 3:return 1.15f; // difícil
+            case 4:return 1.10f; // muito difícil
+            default:return 1.00f; // insano
+        }
+    }
+
+    static boolean hitsMeteor(float meteorX,float meteorY,float meteorRadius,float shotX,float shotY,int difficulty) {
+        float r=Math.max(0f,meteorRadius)*hitRadiusMultiplier(difficulty);
+        float dx=shotX-meteorX,dy=shotY-meteorY;
+        return dx*dx+dy*dy<=r*r;
+    }
+
     boolean allowLargePrime() { return wave >= 5; }
     void countDestroyed() { destroyedThisWave++; }
     boolean complete() { return destroyedThisWave >= targetThisWave; }
