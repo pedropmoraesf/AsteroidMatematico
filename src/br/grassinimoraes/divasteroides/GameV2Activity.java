@@ -164,8 +164,8 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
-        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=160;
-        static final float CITY_TOP=230f, CITY_BOTTOM=390f;
+        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=220;
+        static final float CITY_TOP=170f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
@@ -1661,24 +1661,24 @@ public class GameV2Activity extends Activity {
 
             float reveal=Math.min(1f,shieldVisualAge/.70f);
             reveal=1f-(1f-reveal)*(1f-reveal);
-            float left=-55f,right=855f,base=306f,apex=178f;
+            float left=-55f,right=855f,base=306f,apex=125f;
             float half=(right-left)*.5f*reveal;
 
             Path edge=new Path();
             edge.moveTo(left,base);
-            edge.cubicTo(140f,310f,270f,230f,400f,apex);
-            edge.cubicTo(530f,230f,660f,310f,right,base);
+            edge.cubicTo(135f,300f,260f,205f,400f,apex);
+            edge.cubicTo(540f,205f,665f,300f,right,base);
 
             Path fill=new Path();
             fill.moveTo(left,base);
-            fill.cubicTo(140f,310f,270f,230f,400f,apex);
-            fill.cubicTo(530f,230f,660f,310f,right,base);
+            fill.cubicTo(135f,300f,260f,205f,400f,apex);
+            fill.cubicTo(540f,205f,665f,300f,right,base);
             fill.lineTo(right,390f);
             fill.lineTo(left,390f);
             fill.close();
 
             c.save();
-            c.clipRect(Math.max(0f,400f-half),160f,Math.min(800f,400f+half),391f);
+            c.clipRect(Math.max(0f,400f-half),105f,Math.min(800f,400f+half),391f);
             int pulse=(int)(6+5*Math.abs(Math.sin(SystemClock.uptimeMillis()/210.0)));
 
             p.setStyle(Paint.Style.FILL);
