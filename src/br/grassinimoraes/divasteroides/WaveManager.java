@@ -11,7 +11,7 @@ final class WaveManager {
 
     int maxMeteorValue() {
         int base = 18 + (wave-1)*7 + difficulty*2;
-        return Math.min(200, base);
+        return Math.min(MeteorMathV2.MAX_METEOR_VALUE, base);
     }
 
     int primeUnlockCeiling() {
@@ -29,8 +29,8 @@ final class WaveManager {
     }
 
     float specialChance() {
-        if (wave < 3) return 0f;
-        return Math.min(.25f, .035f + (wave-3)*.011f + difficulty*.006f);
+        // As quatro operações do quiz já podem aparecer desde a primeira fase.
+        return Math.min(.30f, .11f + (wave-1)*.008f + difficulty*.008f);
     }
 
     float bonusChance() {
