@@ -1722,33 +1722,34 @@ public class GameV2Activity extends Activity {
             drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/2",400,84,11,Color.LTGRAY,true);
 
             if(manualPage==0){
-                drawText(c,"OBJETIVO PRIMARIO",92,112,14,Color.YELLOW,false);
-                drawText(c,"Proteja a cidade. Da Fase 2 em diante, o ponto estrategico tem vida propria.",92,134,12,Color.WHITE,false);
-                drawText(c,"Se o ponto sobreviver, a fase concede bonus de pontuacao.",92,154,12,Color.LTGRAY,false);
-                drawText(c,"Meteoros que atingem a cidade NAO contam como abatidos.",92,170,11,Color.LTGRAY,false);
-                drawText(c,"CONTROLE DE TIRO",92,190,14,Color.YELLOW,false);
-                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,210,12,Color.WHITE,false);
-                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,232,12,Color.WHITE,false);
-                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,254,12,Color.WHITE,false);
-                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,276,12,Color.WHITE,false);
-                drawText(c,"ARSENAL",92,302,14,Color.YELLOW,false);
-                drawText(c,"7 municoes: 2, 3, 5, 7, 11, 13 e 17.  8o: SUBTRATOR.",92,324,11,Color.WHITE,false);
-                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,346,11,Color.WHITE,false);
-                drawText(c,"Quanto mais rapido concluir a fase, maior o bonus de tempo.",92,366,11,Color.YELLOW,false);
-                drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
+                drawText(c,"OBJETIVO E ECONOMIA",92,112,14,Color.YELLOW,false);
+                drawText(c,"Proteja a cidade. Da Fase 2 em diante, preserve tambem o monumento.",92,134,11,Color.WHITE,false);
+                drawText(c,"Monumento intacto rende R$; danificado rende proporcionalmente ao que restou.",92,154,11,Color.LTGRAY,false);
+                drawText(c,"Se for destruido, ha perda de R$ maior nas dificuldades mais altas.",92,172,11,Color.LTGRAY,false);
+                drawText(c,"REPARAR custa 10% do dinheiro atual e recupera 10 pontos de saude.",92,190,11,Color.YELLOW,false);
+                drawText(c,"CONTROLE DE TIRO",92,214,14,Color.YELLOW,false);
+                drawText(c,"Cada acerto subtrai do meteoro o valor da arma selecionada.",92,234,11,Color.WHITE,false);
+                drawText(c,"Segurar o toque carrega apenas a mira/efeito; nao aumenta o valor da arma.",92,252,11,Color.WHITE,false);
+                drawText(c,"Armas: 2, 4, 8, 16, 32, 64 e 128. A arma 2 tem municao infinita.",92,274,11,Color.WHITE,false);
+                drawText(c,"As demais usam estoque. Itens de municao abatidos acrescentam +2.",92,292,11,Color.LTGRAY,false);
+                drawText(c,"H usa o ultimo projetil e elimina completamente um meteoro normal.",92,310,11,Color.WHITE,false);
+                drawText(c,"Cada valor efetivamente subtraido vira R$ para financiar armas ou reparos.",92,328,11,Color.YELLOW,false);
+                drawText(c,"BOMBA 0 continua eliminando todos os meteoros presentes na tela.",92,346,11,Color.WHITE,false);
+                drawText(c,"Destrocos de aviao comercial podem cair sobre a cidade e causar dano.",92,364,11,Color.LTGRAY,false);
+                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ E DIFICULDADE >",false);
             }else{
-                drawText(c,"PROTOCOLO DE DIVISIBILIDADE",92,112,14,Color.YELLOW,false);
-                drawText(c,"2  // ultimo algarismo par: 0, 2, 4, 6 ou 8.",92,138,12,Color.WHITE,false);
-                drawText(c,"3  // soma dos algarismos divisivel por 3.",92,162,12,Color.WHITE,false);
-                drawText(c,"5  // termina em 0 ou 5.",92,186,12,Color.WHITE,false);
-                drawText(c,"7  // retire o ultimo algarismo e subtraia o dobro dele;",92,210,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 7.",92,230,12,Color.LTGRAY,false);
-                drawText(c,"11 // diferenca entre as somas alternadas dos algarismos",92,254,12,Color.WHITE,false);
-                drawText(c,"     deve ser 0 ou multiplo de 11.",92,274,12,Color.LTGRAY,false);
-                drawText(c,"13 // retire o ultimo algarismo e some 4 vezes esse valor;",92,298,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 13.",92,318,12,Color.LTGRAY,false);
-                drawText(c,"17 // retire o ultimo algarismo e subtraia 5 vezes esse valor;",92,342,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 17.",92,362,12,Color.LTGRAY,false);
+                drawText(c,"QUIZ MATEMATICO",92,112,14,Color.YELLOW,false);
+                drawText(c,"Desde a Fase 1 aparecem +, -, x e /; as operacoes alternam sem repeticao imediata.",92,134,11,Color.WHITE,false);
+                drawText(c,"Divisoes sao sempre exatas e subtracoes nunca geram resultado negativo.",92,154,11,Color.LTGRAY,false);
+                drawText(c,"Se um meteoro de quiz atingir a cidade, ela perde metade da saude atual.",92,174,11,Color.YELLOW,false);
+                drawText(c,"FACIL: x e / em unidades; + e - ate dezenas.",92,202,11,Color.WHITE,false);
+                drawText(c,"MEDIO: multiplicando/dividendo em 2 algarismos; + e - em centenas.",92,224,11,Color.WHITE,false);
+                drawText(c,"DIFICIL: multiplicando/dividendo em centenas; + e - em milhares.",92,246,11,Color.WHITE,false);
+                drawText(c,"MUITO DIFICIL: multiplicando/dividendo em milhares; + e - em 10 milhares.",92,268,11,Color.WHITE,false);
+                drawText(c,"INSANO: numeros ainda maiores, mantendo multiplicador/divisor em unidade.",92,290,11,Color.WHITE,false);
+                drawText(c,"Em todos os niveis, multiplicador e divisor ficam entre 2 e 9.",92,312,11,Color.LTGRAY,false);
+                drawText(c,"A variedade interna aumenta gradualmente conforme as fases avancam.",92,334,11,Color.LTGRAY,false);
+                drawText(c,"Responder corretamente chama o ataque aereo e concede recompensa em R$.",92,356,11,Color.YELLOW,false);
                 drawMenuButton(c,new RectF(110,382,325,421),"< BRIEFING",false);
             }
             drawMenuButton(c,new RectF(315,423,485,446),"VOLTAR",false);
@@ -1756,14 +1757,26 @@ public class GameV2Activity extends Activity {
 
         void drawIntermission(Canvas c){
             p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
-            drawDarkCard(c,160,45,640,365);
-            drawText(c,"INTERVALO ENTRE FASES",400,82,25,Color.CYAN,true);
-            drawText(c,"DINHEIRO: $"+inv.money,400,112,16,Color.YELLOW,true);
-            shopSubRect.set(215,140,585,190);
-            shopBombRect.set(215,210,585,260);
-            shopNextRect.set(285,300,515,346);
-            drawMenuButton(c,shopSubRect,"SUBTRATOR +10   $"+SHOP_SUBTRACTOR_COST,false);
-            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   $"+SHOP_BOMB_COST,false);
+            drawDarkCard(c,135,18,665,382);
+            drawText(c,"INTERVALO ENTRE FASES",400,48,23,Color.CYAN,true);
+            drawText(c,"DINHEIRO: R$"+inv.money+"   CIDADE: "+Math.round(cityHealth)+"%",400,70,14,Color.YELLOW,true);
+            int weapon=shopWeaponValue();
+            int weaponCost=weapon*WEAPON_PRICE_MULTIPLIER;
+            int ammoCost=inv.selectedWeapon>2?inv.selectedWeapon*2:0;
+            shopWeaponRect.set(185,82,615,122);
+            shopAmmoRect.set(185,130,615,170);
+            shopHRect.set(185,178,615,218);
+            shopBombRect.set(185,226,615,266);
+            shopNextRect.set(285,310,515,350);
+            String weaponLabel=weapon<=2?"ARSENAL BASICO ATIVO"
+                    :(inv.hasWeapon(weapon)?"SUBTRATOR "+weapon+" JA ADQUIRIDO":"COMPRAR SUBTRATOR "+weapon+"   R$"+weaponCost);
+            String ammoLabel=inv.selectedWeapon<=2?"MUNICAO: SELECIONE 4-128 NO HUD"
+                    :"MUNICAO "+inv.selectedWeapon+" +2   R$"+ammoCost;
+            drawMenuButton(c,shopWeaponRect,weaponLabel,false);
+            drawMenuButton(c,shopAmmoRect,ammoLabel,false);
+            drawMenuButton(c,shopHRect,"ARMA H +1   R$"+SHOP_H_COST,false);
+            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   R$"+SHOP_BOMB_COST,false);
+            drawText(c,"O botao REPARAR no HUD continua ativo durante o intervalo.",400,291,10,Color.LTGRAY,true);
             drawMenuButton(c,shopNextRect,"PROXIMA FASE",true);
         }
 
