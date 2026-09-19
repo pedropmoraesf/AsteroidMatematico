@@ -59,18 +59,21 @@ public class GameLogicTest {
         assertFalse(inv.repair10Percent(100f));
     }
 
-    @Test public void ondasSaoCurtasEProgressivas() {
+    @Test public void ondasTemMetasMaioresEProgressivas() {
         WaveManager w=new WaveManager();
         assertEquals(1,w.wave);
-        assertEquals(5,w.targetThisWave);
+        assertEquals(8,w.targetThisWave);
+        assertEquals(8,WaveManager.targetForWave(1));
         assertTrue(w.specialChance()>0f);
         w.nextWave();
         assertEquals(2,w.wave);
-        assertEquals(6,w.targetThisWave);
+        assertEquals(10,w.targetThisWave);
+        assertEquals(12,WaveManager.targetForWave(3));
         for(int i=0;i<40;i++)w.nextWave();
         assertEquals(WaveManager.MAX_WAVE,w.wave);
         assertTrue(w.isFinalWave());
-        assertTrue(w.targetThisWave<=12);
+        assertEquals(32,w.targetThisWave);
+        assertEquals(32,WaveManager.targetForWave(25));
         assertTrue(w.maxMeteorValue()<=MeteorMathV2.MAX_METEOR_VALUE);
         assertTrue(w.meteorSpeed()>0f);
         assertTrue(w.spawnSeconds()>=.82f);
@@ -138,6 +141,37 @@ public class GameLogicTest {
         }
 
         assertEquals(4,seen.size());
+    }
+
+    @Test public void x0SimplificaQuizParaOperandosDeUmAlgarismo() {
+        Random r=new Random(9090);
+        Set<String> used=new HashSet<String>();
+
+        for(MeteorMathV2.Operation op:MeteorMathV2.Operation.values()){
+            MeteorMathV2.Quiz source=new MeteorMathV2.Quiz(8,2,op,new int[]{0,1,2});
+            MeteorMathV2.Quiz q=MeteorMathV2.simplifyQuizToOneDigit(r,source,used);
+
+            assertEquals(op,q.operation);
+            assertTrue(q.a>=0&&q.a<=9);
+            assertTrue(q.b>=0&&q.b<=9);
+            assertTrue(q.answer>=0);
+            assertTrue(used.contains(q.key()));
+
+            boolean found=false;
+            for(int option:q.options)if(option==q.answer)found=true;
+            assertTrue(found);
+
+            if(op==MeteorMathV2.Operation.SUBTRACT)assertTrue(q.a>=q.b);
+            if(op==MeteorMathV2.Operation.MULTIPLY){
+                assertTrue(q.a>=1&&q.a<=9);
+                assertTrue(q.b>=2&&q.b<=9);
+            }
+            if(op==MeteorMathV2.Operation.DIVIDE){
+                assertTrue(q.a>=1&&q.a<=9);
+                assertTrue(q.b>=2&&q.b<=9);
+                assertEquals(0,q.a%q.b);
+            }
+        }
     }
 
     @Test public void divisaoClassicaSoAceitaDivisorExato() {
