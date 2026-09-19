@@ -1834,7 +1834,6 @@ public class GameV2Activity extends Activity {
             if(income>0){
                 hit.moneyEarned+=income;
                 inv.money+=income;
-                addHudNotice("+R$ "+income+"  METEORO",Color.YELLOW);
             }
 
             if(selectedMode==1){
@@ -1884,21 +1883,23 @@ public class GameV2Activity extends Activity {
         void collectBonus(Meteor m){
             switch(m.bonus){
                 case AMMO:
+                    startPickupFlight(m);
                     if(subtractionMechanic){
                         inv.addWeaponAmmo(m.ammoValue,2);
-                        addHudNotice("MUNICAO "+m.ammoValue+" +2",Color.YELLOW);
                         audio.play("bonus_municao.wav");
                     }else{
                         boolean unlocked=inv.unlockDivisor(m.ammoValue);
-                        addHudNotice(unlocked?"DIVISOR "+m.ammoValue+" LIBERADO":"DIVISOR "+m.ammoValue+" JA DISPONIVEL",Color.YELLOW);
                         if(unlocked)audio.play("municao_desbloqueada.wav");
                         else audio.play("bonus_municao.wav");
                     }
                     break;
                 case HYPER:
-                    inv.addHyper(1);addHudNotice("ARMA H +1",Color.CYAN);audio.play("bonus_municao.wav");break;
+                    startPickupFlight(m);
+                    inv.addHyper(1);audio.play("bonus_municao.wav");break;
                 case MONEY:
-                    inv.money+=m.value;addHudNotice("+R$ "+m.value+"  BONUS",Color.YELLOW);audio.play("bonus_dinheiro.wav");break;
+                    inv.money+=m.value;
+                    addWorldMoney(m.x,m.y,m.value);
+                    audio.play("bonus_dinheiro.wav");break;
                 case HEALTH:
                     float before=cityHealth;cityHealth=Math.min(100,cityHealth+m.value);
                     addHudNotice("CIDADE +"+Math.round(cityHealth-before)+"%",Color.GREEN);audio.play("bonus_saude.wav");break;
@@ -1911,7 +1912,18 @@ public class GameV2Activity extends Activity {
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
 
-        void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
+        void explode(Meteor m,boolean count,boolean guaranteedBonus){
+            if(m.dead)return;
+            float ex=m.x,ey=m.y;
+            m.dead=true;
+            audio.play("explosao_meteoro.wav");
+            burst(ex,ey,Color.rgb(255,150,35),24);
+            if(count){
+                waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);
+                if(m.moneyEarned>0)addWorldMoney(ex,ey,m.moneyEarned);
+                if(guaranteedBonus)spawnBonusAt(ex,ey);
+            }
+        }
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
         void answerQuiz(int option){
