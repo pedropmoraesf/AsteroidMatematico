@@ -282,7 +282,7 @@ public class GameV2Activity extends Activity {
         boolean bombSequence=false;
         float bombSequenceTimer=0f,bombFlashTimer=0f;
         Meteor pendingBonusTarget;
-        float pendingBonusTimer=0f;
+        float pendingBonusTimer=0f,pendingBonusX=0f,pendingBonusY=0f;
         int lastDivisorAcquired=0;
         boolean aiming=false;
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
@@ -923,8 +923,8 @@ public class GameV2Activity extends Activity {
             if(pendingBonusTarget==null)return;
             pendingBonusTimer-=dt;
             if(pendingBonusTimer<=0){
-                Meteor m=pendingBonusTarget;pendingBonusTarget=null;
-                if(m!=null&&!m.dead)collectBonus(m);
+                Meteor m=pendingBonusTarget;float fx=pendingBonusX,fy=pendingBonusY;pendingBonusTarget=null;
+                if(m!=null&&!m.dead)collectBonusAt(m,fx,fy);
             }
         }
 
@@ -1051,7 +1051,7 @@ public class GameV2Activity extends Activity {
             return 14f+idx*52f+22.5f;
         }
 
-        void startPickupFlight(Meteor m){
+        void startPickupFlight(Meteor m,float startX,float startY){
             if(m==null)return;
             int idx=0;
             float endX,endY=430f;
@@ -1061,7 +1061,7 @@ public class GameV2Activity extends Activity {
                 idx=subtractionMechanic?projectileIndexForSubtractor(m.ammoValue):projectileIndexForDivisor(m.ammoValue);
                 endX=pickupHudX(idx);
             }
-            pickupFlights.add(new PickupFly(m.bonus,idx,m.x,m.y,endX,endY,.42f));
+            pickupFlights.add(new PickupFly(m.bonus,idx,startX,startY,endX,endY,.42f));
         }
 
         void updatePickupFlights(float dt){
@@ -1860,9 +1860,9 @@ public class GameV2Activity extends Activity {
             audio.play("disparo_canhao.wav");
         }
 
-        void queueBonusCollection(Meteor m){
+        void queueBonusCollection(Meteor m,float hitX,float hitY){
             if(m==null||m.dead||pendingBonusTarget!=null)return;
-            pendingBonusTarget=m;pendingBonusTimer=shotDuration;
+            pendingBonusTarget=m;pendingBonusTimer=shotDuration;pendingBonusX=hitX;pendingBonusY=hitY;
         }
 
         void applyDivisorShot(Meteor m,int divisor){
@@ -1898,7 +1898,7 @@ public class GameV2Activity extends Activity {
                 if(!m.dead&&WaveManager.hitsMeteor(m.x,m.y,m.radius,x,y,selectedDifficulty)){hit=m;break;}
             }
             if(hit==null)return;
-            if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
+            if(hit.kind==Kind.BONUS){queueBonusCollection(hit,x,y);return;}
 
             // O total de dinheiro obtido de um mesmo meteoro nunca excede
             // o valor que ele tinha ao entrar na fase.
@@ -1953,9 +1953,13 @@ public class GameV2Activity extends Activity {
         }
 
         void collectBonus(Meteor m){
+            collectBonusAt(m,m.x,m.y);
+        }
+
+        void collectBonusAt(Meteor m,float effectX,float effectY){
             switch(m.bonus){
                 case AMMO:
-                    startPickupFlight(m);
+                    startPickupFlight(m,effectX,effectY);
                     if(subtractionMechanic){
                         inv.addWeaponAmmo(m.ammoValue,2);
                         audio.play("bonus_municao.wav");
@@ -1970,7 +1974,7 @@ public class GameV2Activity extends Activity {
                     inv.addHyper(1);audio.play("bonus_municao.wav");break;
                 case MONEY:
                     inv.money+=m.value;
-                    addWorldMoney(m.x,m.y,m.value);
+                    addWorldMoney(effectX,effectY,m.value);
                     audio.play("bonus_dinheiro.wav");break;
                 case HEALTH:
                     float before=cityHealth;cityHealth=Math.min(100,cityHealth+m.value);
