@@ -1142,8 +1142,14 @@ public class GameV2Activity extends Activity {
         }
 
         void saveGame(){
-            StringBuilder divs=new StringBuilder();
-            for(Integer d:inv.divisors){if(divs.length()>0)divs.append(',');divs.append(d);}
+            StringBuilder weapons=new StringBuilder();
+            for(Integer weapon:inv.weapons){if(weapons.length()>0)weapons.append(',');weapons.append(weapon);}
+            StringBuilder ammo=new StringBuilder();
+            for(Integer weapon:inv.weapons){
+                if(weapon<=2)continue;
+                if(ammo.length()>0)ammo.append(',');
+                ammo.append(weapon).append(':').append(inv.ammoFor(weapon));
+            }
             savePrefs().edit()
                     .putBoolean("exists",true)
                     .putInt("wave",waves.wave)
@@ -1153,10 +1159,10 @@ public class GameV2Activity extends Activity {
                     .putFloat("cityHealth",cityHealth)
                     .putInt("score",score)
                     .putInt("destroyedTotal",destroyedTotal)
-                    .putString("divisors",divs.toString())
-                    .putInt("selectedDivisor",inv.selectedDivisor)
-                    .putInt("subtractorCharge",inv.subtractorCharge)
-                    .putInt("subtractorValue",inv.subtractorValue)
+                    .putString("weapons",weapons.toString())
+                    .putString("weaponAmmo",ammo.toString())
+                    .putInt("selectedWeapon",inv.selectedWeapon)
+                    .putInt("hAmmo",inv.hAmmo)
                     .putInt("money",inv.money)
                     .putInt("bombZero",inv.bombZero)
                     .putFloat("shieldSeconds",inv.shieldSeconds)
@@ -1172,29 +1178,46 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastWeaponAcquired=0;
+            ammoDropTriggered=false;phaseQuizCount=0;lastQuizOperation=null;quizBag.clear();
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
+            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;lastProtectedMoneyDelta=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
             waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
-            selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
+            selectedDifficulty=Math.max(0,Math.min(4,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
             cityHealth=Math.max(1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
             score=Math.max(0,sp.getInt("score",0));destroyedTotal=Math.max(0,sp.getInt("destroyedTotal",0));
-            inv.divisors.clear();
-            String raw=sp.getString("divisors","2,3");
-            if(raw!=null)for(String part:raw.split(",")){try{int d=Integer.parseInt(part);if(d>=2&&d<=17&&MeteorMathV2.isPrime(d))inv.divisors.add(d);}catch(Exception ignored){}}
-            if(inv.divisors.isEmpty()){inv.divisors.add(2);inv.divisors.add(3);}
-            inv.selectedDivisor=sp.getInt("selectedDivisor",2);
-            if(!inv.divisors.contains(inv.selectedDivisor))inv.selectedDivisor=2;
-            inv.subtractorCharge=Math.max(0,sp.getInt("subtractorCharge",0));
-            inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
+
+            inv.weapons.clear();inv.ammo.clear();inv.weapons.add(2);
+            String raw=sp.getString("weapons",null);
+            if(raw==null)raw=sp.getString("divisors","2");
+            if(raw!=null)for(String part:raw.split(",")){
+                try{int weapon=Integer.parseInt(part.trim());if(MeteorMathV2.isWeaponValue(weapon))inv.weapons.add(weapon);}catch(Exception ignored){}
+            }
+            String rawAmmo=sp.getString("weaponAmmo","");
+            if(rawAmmo!=null&&!rawAmmo.isEmpty())for(String token:rawAmmo.split(",")){
+                try{
+                    String[] pair=token.split(":");
+                    if(pair.length==2){
+                        int weapon=Integer.parseInt(pair[0]),amount=Integer.parseInt(pair[1]);
+                        if(inv.hasWeapon(weapon)&&weapon>2)inv.setAmmo(weapon,amount);
+                    }
+                }catch(Exception ignored){}
+            }
+            for(Integer weapon:inv.weapons){
+                if(weapon>2&&!inv.ammo.containsKey(weapon))inv.setAmmo(weapon,waves.phaseAmmoCapacity());
+            }
+            int selected=sp.getInt("selectedWeapon",sp.getInt("selectedDivisor",2));
+            inv.selectedWeapon=inv.hasWeapon(selected)?selected:2;
+            inv.hAmmo=Math.max(0,sp.getInt("hAmmo",0));
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
+
             loadCityForPhase();initializeDamageGrid();
             restoreCityDamage(sp.getString("cityDamageGrid",""));
             protectedSiteHealth=waves.wave>1?Math.max(0f,Math.min(100f,sp.getFloat("protectedSiteHealth",100f))):100f;
@@ -1211,7 +1234,7 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
             cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
