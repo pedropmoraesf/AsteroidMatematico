@@ -392,6 +392,18 @@ public class GameV2Activity extends Activity {
             return "O "+protectedSiteName()+" DEVE SOBREVIVER";
         }
 
+        String phaseTrainingTip(){
+            switch(waves.wave){
+                case 1:return subtractionMechanic?"TREINO: REDUZA O VALOR DOS METEOROS COM OS SUBTRATORES":"TREINO: DIVIDA O VALOR ATE DESTRUIR O METEORO";
+                case 2:return subtractionMechanic?"NOVO FOCO: COMPRE A ARMA 4 E PROTEJA O MONUMENTO":"NOVO FOCO: PROTEJA O MONUMENTO E USE O NOVO DIVISOR";
+                case 3:return subtractionMechanic?"MUNICAO CAI DO CEU: ATIRE NO BONUS PARA RECEBER +2":"BONUS E RECURSOS PASSAM A SER MAIS IMPORTANTES";
+                case 4:return "ECONOMIA: O SALDO E COMPARTILHADO ENTRE REPARO E ARMAS";
+                case 5:return "ARMA H: DESTRUICAO INSTANTANEA DE UM METEORO";
+                case 6:return "BOMBA x0: CARA, MAS LIMPA A TELA E FACILITA OS QUIZZES";
+                default:return "PLANEJE O SALDO: MUNICAO, H, x0 E DEFESA DA CIDADE";
+            }
+        }
+
         int scheduledDivisorForPhase(){
             switch(waves.wave){
                 case 2:return 5;
@@ -1057,6 +1069,21 @@ public class GameV2Activity extends Activity {
             return false;
         }
 
+        float protectedRewardFraction(){
+            if(!protectedSiteActive())return 0f;
+            float physical=protectedSiteRemainingFraction();
+            return Math.max(0f,Math.min(physical,protectedSiteHealth/100f));
+        }
+
+        int projectedProtectedReward(){
+            if(!protectedSiteActive()||protectedSiteDestroyed)return 0;
+            return Math.max(0,Math.round(WaveManager.monumentFullBonus(waves.wave)*protectedRewardFraction()));
+        }
+
+        int projectedProtectedPenalty(){
+            return Math.min(inv.money,WaveManager.monumentPenalty(selectedDifficulty,waves.wave));
+        }
+
         float protectedSiteRemainingFraction(){
             if(protectedCells==null||cityDestroyed==null)return 0f;
             int total=0,remaining=0;
@@ -1253,16 +1280,17 @@ public class GameV2Activity extends Activity {
             if(waves.complete()&&meteors.isEmpty()&&military==null&&(!subtractionMechanic||phaseAmmoDropIndex>=phaseAmmoPlan.size())){
                 audio.play("fase_concluida.wav");
                 if(protectedSiteActive()&&!protectedSiteBonusAwarded){
-                    float physicalRemaining=protectedSiteRemainingFraction();
-                    float remaining=Math.max(0f,Math.min(physicalRemaining,protectedSiteHealth/100f));
+                    float remaining=protectedRewardFraction();
                     if(protectedSiteDestroyed||remaining<=0f){
-                        int loss=Math.min(inv.money,15+selectedDifficulty*15+waves.wave*3);
+                        int loss=projectedProtectedPenalty();
                         inv.money-=loss;
                         lastProtectedBonus=-loss;
+                        addHudNotice(loss>0?"MONUMENTO -R$ "+loss:"MONUMENTO DESTRUIDO",Color.RED);
                     }else{
-                        int fullBonus=55+waves.wave*12;
+                        int fullBonus=WaveManager.monumentFullBonus(waves.wave);
                         lastProtectedBonus=Math.max(1,Math.round(fullBonus*remaining));
                         inv.money+=lastProtectedBonus;
+                        addHudNotice("MONUMENTO +R$ "+lastProtectedBonus,Color.YELLOW);
                     }
                     protectedSiteBonusAwarded=true;
                 }else lastProtectedBonus=0;
@@ -1997,6 +2025,7 @@ public class GameV2Activity extends Activity {
                     drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
                 }
                 drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
+                drawText(c,phaseTrainingTip(),400,315,11,Color.LTGRAY,true);
             }
 
             if(waveClear){
@@ -2026,6 +2055,7 @@ public class GameV2Activity extends Activity {
                 drawText(c,"Pontos: "+score,400,245,24,Color.WHITE,true);
                 drawMenuButton(c,new RectF(305,280,495,330),"REINICIAR",true);
             }
+            drawHudNotices(c);
         }
 
         void drawPauseMenu(Canvas c){
@@ -2456,6 +2486,8 @@ public class GameV2Activity extends Activity {
                 p.setColor(Color.rgb(55,22,18));c.drawRect(250,55,480,68,p);
                 p.setColor(protectedSiteHealth>60?Color.CYAN:protectedSiteHealth>30?Color.YELLOW:Color.RED);
                 c.drawRect(250,55,250+230*protectedSiteHealth/100f,68,p);
+                if(protectedSiteDestroyed)drawText(c,"RISCO -R$ "+projectedProtectedPenalty(),490,67,10,Color.RED,false);
+                else drawText(c,"BONUS R$ "+projectedProtectedReward(),490,67,10,Color.YELLOW,false);
             }
 
             if(running&&!preWave&&!gameOver){
