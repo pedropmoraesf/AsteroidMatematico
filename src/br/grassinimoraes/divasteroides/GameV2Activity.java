@@ -412,10 +412,25 @@ public class GameV2Activity extends Activity {
             return Math.min(WaveManager.MAX_WAVE,waves.wave+1);
         }
 
+        int weaponUnlockPhase(int weapon){
+            for(int i=0;i<MeteorMathV2.SUBTRACTORS.length;i++)if(MeteorMathV2.SUBTRACTORS[i]==weapon)return i+1;
+            return 1;
+        }
+
+        int nextPurchasableWeapon(){
+            int maxAvailable=subtractorForPhase(nextShopPhase());
+            for(int w:MeteorMathV2.SUBTRACTORS){
+                if(w<=2)continue;
+                if(w>maxAvailable)break;
+                if(!inv.hasWeapon(w))return w;
+            }
+            return maxAvailable;
+        }
+
         int shopAmmoWeapon(){
             int w=inv.preferredFiniteWeapon();
             if(w>2)return w;
-            int next=subtractorForPhase(nextShopPhase());
+            int next=nextPurchasableWeapon();
             return next>2?next:4;
         }
 
@@ -773,13 +788,14 @@ public class GameV2Activity extends Activity {
 
         void buyCurrentWeapon(){
             if(!subtractionMechanic)return;
-            int phase=nextShopPhase();
-            int weapon=subtractorForPhase(phase);
-            if(weapon<=2||inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;return;}
+            int weapon=nextPurchasableWeapon();
+            if(weapon<=2)return;
+            if(inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;return;}
             int cost=weaponPurchaseCost(weapon);
             if(inv.money<cost)return;
             inv.money-=cost;
-            inv.unlockWeapon(weapon,3*targetForPhase(phase));
+            int unlockPhase=weaponUnlockPhase(weapon);
+            inv.unlockWeapon(weapon,3*targetForPhase(unlockPhase));
             inv.selectedWeapon=weapon;
             audio.play("municao_desbloqueada.wav");
         }
@@ -1980,12 +1996,11 @@ public class GameV2Activity extends Activity {
             shopNextRect.set(285,320,515,357);
 
             if(subtractionMechanic){
-                int nextPhase=nextShopPhase();
-                int weapon=subtractorForPhase(nextPhase);
-                int initial=3*targetForPhase(nextPhase);
+                int weapon=nextPurchasableWeapon();
+                int initial=3*targetForPhase(weaponUnlockPhase(weapon));
                 String weaponLabel;
                 if(weapon<=2)weaponLabel="ARMA 2 INFINITA";
-                else if(inv.hasWeapon(weapon))weaponLabel="ARMA "+weapon+" ADQUIRIDA";
+                else if(inv.hasWeapon(weapon))weaponLabel="ARMAS DISPONIVEIS ADQUIRIDAS";
                 else weaponLabel="COMPRAR ARMA "+weapon+" +"+initial+"   R$ "+weaponPurchaseCost(weapon);
                 drawMenuButton(c,shopWeaponRect,weaponLabel,false);
 
