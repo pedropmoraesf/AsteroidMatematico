@@ -2080,36 +2080,46 @@ public class GameV2Activity extends Activity {
             drawDarkCard(c,62,20,738,452);
             p.setColor(Color.rgb(72,94,54));c.drawRect(72,30,728,72,p);
             drawText(c,"BRIEFING MILITAR // OPERACAO ESCUDO",400,58,23,Color.rgb(235,235,190),true);
-            drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/2",400,84,11,Color.LTGRAY,true);
+            drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/3",400,84,11,Color.LTGRAY,true);
 
             if(manualPage==0){
-                drawText(c,"DUAS MECANICAS",92,112,14,Color.YELLOW,false);
-                drawText(c,"SUBTRACAO: 2, 4, 8, 16, 32, 64 e 128 reduzem o valor do meteoro.",92,134,11,Color.WHITE,false);
-                drawText(c,"A arma 2 e infinita; as demais consomem municao. H destrói de imediato.",92,154,11,Color.WHITE,false);
-                drawText(c,"DIVISORES: preserva a mecanica classica 2, 3, 5, 7, 11, 13 e 17.",92,174,11,Color.WHITE,false);
-                drawText(c,"A mecanica e escolhida em OPCOES antes de iniciar/carregar.",92,194,11,Color.LTGRAY,false);
-
-                drawText(c,"ECONOMIA E DEFESA",92,222,14,Color.YELLOW,false);
-                drawText(c,"Acertos em meteoros normais rendem dinheiro conforme o valor atingido.",92,244,11,Color.WHITE,false);
-                drawText(c,"REPARAR custa 10% do dinheiro atual e recupera 10% da cidade.",92,264,11,Color.WHITE,false);
-                drawText(c,"Municao pode cair do ceu (+2) ou ser comprada entre fases.",92,284,11,Color.WHITE,false);
-                drawText(c,"O monumento preservado rende dinheiro proporcional a vida restante.",92,304,11,Color.WHITE,false);
-                drawText(c,"Se for destruido, ha perda de dinheiro maior nas dificuldades altas.",92,324,11,Color.LTGRAY,false);
-                drawText(c,"Destrocos do aviao comercial tambem podem atingir a cidade.",92,346,11,Color.LTGRAY,false);
-                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ E DIFICULDADE >",false);
+                drawText(c,"COMBATE E ARSENAL",92,112,14,Color.YELLOW,false);
+                drawText(c,"SUBTRACAO: 2, 4, 8, 16, 32, 64 e 128 reduzem o valor do meteoro.",92,136,11,Color.WHITE,false);
+                drawText(c,"A arma 2 tem municao infinita; as demais usam cargas limitadas.",92,158,11,Color.WHITE,false);
+                drawText(c,"DIVISORES: 2, 3, 5, 7, 11, 13 e 17 preservam a mecanica classica.",92,180,11,Color.WHITE,false);
+                drawText(c,"H custa R$ "+SHOP_H_COST+" e destrói instantaneamente um meteoro atingido.",92,208,11,Color.CYAN,false);
+                drawText(c,"x0 custa R$ "+SHOP_BOMB_COST+" e elimina meteoros normais e coleta bonus da tela.",92,230,11,Color.WHITE,false);
+                drawText(c,"A x0 NAO destrói quiz: ela reduz a conta para operandos de 1 algarismo.",92,252,11,Color.YELLOW,false);
+                drawText(c,"MIRA: MUITO FACIL +30%, FACIL +25%, MEDIO +20%, DIFICIL +15%.",92,280,10,Color.LTGRAY,false);
+                drawText(c,"MUITO DIFICIL +10%; INSANO usa somente o tamanho real do meteoro.",92,300,10,Color.LTGRAY,false);
+                drawText(c,"A dificuldade tambem aumenta velocidade, valores e pressao dos quizzes.",92,326,10,Color.WHITE,false);
+                drawMenuButton(c,new RectF(475,382,690,421),"ECONOMIA >",false);
+            }else if(manualPage==1){
+                drawText(c,"ECONOMIA E DEFESA",92,112,14,Color.YELLOW,false);
+                drawText(c,"Cada acerto pode render dinheiro, mas cada meteoro tem um teto total.",92,136,11,Color.WHITE,false);
+                drawText(c,"Esse teto e o valor original do meteoro: tiros fracos nao geram renda infinita.",92,158,11,Color.LTGRAY,false);
+                drawText(c,"REPARAR custa 10% do saldo atual e recupera 10% da cidade.",92,186,11,Color.WHITE,false);
+                drawText(c,"Cada fase e outra cidade: a nova cidade sempre comeca em 100%.",92,208,11,Color.WHITE,false);
+                drawText(c,"Municao pode cair do ceu (+2) ou ser comprada no intervalo.",92,230,11,Color.WHITE,false);
+                drawText(c,"O HUD mostra em tempo real quanto o monumento ainda pode render.",92,258,11,Color.CYAN,false);
+                drawText(c,"Se o monumento for destruido, pode haver perda de dinheiro por dificuldade.",92,280,10,Color.LTGRAY,false);
+                drawText(c,"Destrocos do aviao comercial podem atingir e danificar a cidade.",92,302,10,Color.LTGRAY,false);
+                drawText(c,"No intervalo, o mesmo saldo disputa arma, municao, H e x0.",92,326,11,Color.YELLOW,false);
+                drawMenuButton(c,new RectF(110,382,325,421),"< COMBATE",false);
+                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ >",false);
             }else{
-                drawText(c,"QUIZ - TODAS AS OPERACOES DESDE A FASE 1",92,112,14,Color.YELLOW,false);
-                drawText(c,"Sao usados +, -, x e /. As contas nao se repetem na mesma partida.",92,136,11,Color.WHITE,false);
-                drawText(c,"Divisoes sao exatas; subtracoes nunca resultam em numero negativo.",92,156,11,Color.LTGRAY,false);
-                drawText(c,"FACIL: x e / nas unidades; + e - ate dezenas.",92,184,11,Color.WHITE,false);
-                drawText(c,"MEDIO: primeiro termo de x e / com 2 algarismos; + e - nas centenas.",92,206,11,Color.WHITE,false);
-                drawText(c,"DIFICIL: primeiro termo de x e / nas centenas; + e - nos milhares.",92,228,11,Color.WHITE,false);
-                drawText(c,"MUITO DIFICIL: x e / nos milhares; + e - nas dezenas de milhares.",92,250,11,Color.WHITE,false);
-                drawText(c,"INSANO: numeros maiores, mantendo multiplicador/divisor de 1 algarismo.",92,272,11,Color.WHITE,false);
-                drawText(c,"A dificuldade cresce tambem dentro de cada faixa conforme as fases.",92,294,11,Color.LTGRAY,false);
-                drawText(c,"Se um meteoro de quiz atingir a cidade, ela perde metade da vida atual.",92,322,11,Color.RED,false);
-                drawText(c,"Responder certo chama o ataque aereo militar contra o meteoro.",92,344,11,Color.CYAN,false);
-                drawMenuButton(c,new RectF(110,382,325,421),"< BRIEFING",false);
+                drawText(c,"QUIZ E DIFICULDADE",92,112,14,Color.YELLOW,false);
+                drawText(c,"Desde a fase 1 podem aparecer +, -, x e /. A mesma conta nao se repete.",92,136,11,Color.WHITE,false);
+                drawText(c,"Divisoes sao exatas e subtracoes nunca resultam em numero negativo.",92,158,11,Color.LTGRAY,false);
+                drawText(c,"MUITO FACIL: contas menores e a maior tolerancia de mira.",92,184,11,Color.WHITE,false);
+                drawText(c,"FACIL: x e / nas unidades; + e - ate dezenas.",92,206,11,Color.WHITE,false);
+                drawText(c,"MEDIO: primeiro termo de x e / com 2 algarismos; + e - nas centenas.",92,228,10,Color.WHITE,false);
+                drawText(c,"DIFICIL: primeiro termo de x e / nas centenas; + e - nos milhares.",92,250,10,Color.WHITE,false);
+                drawText(c,"MUITO DIFICIL: x e / nos milhares; + e - nas dezenas de milhares.",92,272,10,Color.WHITE,false);
+                drawText(c,"INSANO: numeros maiores e mira sem tolerancia extra.",92,294,10,Color.WHITE,false);
+                drawText(c,"Quiz que atinge a cidade tira metade da saude atual.",92,320,11,Color.RED,false);
+                drawText(c,"Resposta correta chama o ataque aereo militar contra o meteoro.",92,342,11,Color.CYAN,false);
+                drawMenuButton(c,new RectF(110,382,325,421),"< ECONOMIA",false);
             }
             drawMenuButton(c,new RectF(315,423,485,446),"VOLTAR",false);
         }
@@ -2624,9 +2634,11 @@ public class GameV2Activity extends Activity {
 
         void handlePauseTouch(float x,float y){
             if(manualFromPause){
-                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
-                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
-                if(x>=290&&x<=510&&y>=415&&y<=455){manualFromPause=false;manualPage=0;}
+                if(manualPage==0&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=0;return;}
+                if(manualPage==1&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=2;return;}
+                if(manualPage==2&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=1;return;}
+                if(x>=290&&x<=510&&y>=423&&y<=455){manualFromPause=false;manualPage=0;}
                 return;
             }
             for(int i=0;i<pauseButtons.length;i++)if(pauseButtons[i].contains(x,y)){
@@ -2667,9 +2679,11 @@ public class GameV2Activity extends Activity {
                 else if(x>=290&&x<=510&&y>=397&&y<=433)menuPage=MENU_MAIN;
             }
             else if(menuPage==MENU_MANUAL){
-                if(manualPage==0&&x>=455&&x<=710&&y>=365&&y<=430){manualPage=1;return;}
-                if(manualPage==1&&x>=90&&x<=345&&y>=365&&y<=430){manualPage=0;return;}
-                if(x>=290&&x<=510&&y>=415&&y<=455){menuPage=MENU_OPTIONS;manualPage=0;}
+                if(manualPage==0&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=1;return;}
+                if(manualPage==1&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=0;return;}
+                if(manualPage==1&&x>=455&&x<=710&&y>=382&&y<=421){manualPage=2;return;}
+                if(manualPage==2&&x>=90&&x<=345&&y>=382&&y<=421){manualPage=1;return;}
+                if(x>=290&&x<=510&&y>=423&&y<=455){menuPage=MENU_OPTIONS;manualPage=0;}
             }
         }
     }
