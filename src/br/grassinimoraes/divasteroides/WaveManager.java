@@ -6,7 +6,7 @@ final class WaveManager {
 
     int wave = 1;
     int destroyedThisWave = 0;
-    int targetThisWave = 5;
+    int targetThisWave = targetForWave(1);
     int difficulty = 0;
 
     int maxMeteorValue() {
@@ -42,6 +42,13 @@ final class WaveManager {
         return Math.min(.0042f, .0010f + (wave-3)*.00011f);
     }
 
+    static int targetForWave(int phase) {
+        int p=Math.max(1,Math.min(MAX_WAVE,phase));
+        // A meta cresce até 32: 8, 10, 12, 14... dando mais duração às fases
+        // sem tornar as primeiras cidades excessivamente longas.
+        return Math.min(32,8+(p-1)*2);
+    }
+
     boolean allowLargePrime() { return wave >= 5; }
     void countDestroyed() { destroyedThisWave++; }
     boolean complete() { return destroyedThisWave >= targetThisWave; }
@@ -50,6 +57,6 @@ final class WaveManager {
     void nextWave() {
         if (wave < MAX_WAVE) wave++;
         destroyedThisWave=0;
-        targetThisWave = Math.min(12, 4 + wave);
+        targetThisWave = targetForWave(wave);
     }
 }
