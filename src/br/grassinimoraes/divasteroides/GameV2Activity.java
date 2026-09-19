@@ -164,8 +164,8 @@ public class GameV2Activity extends Activity {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
         static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
-        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=75;
-        static final float CITY_TOP=315f, CITY_BOTTOM=390f;
+        static final int CITY_BITMAP_W=800, CITY_BITMAP_H=160;
+        static final float CITY_TOP=230f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
         final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
         final Paint pixel=new Paint();
@@ -202,6 +202,7 @@ public class GameV2Activity extends Activity {
         int menuPage=MENU_MAIN;
         boolean vibrationEnabled=true;
         boolean laserEnabled=false;
+        boolean dynamicWeatherEnabled=false;
         int selectedDifficulty=0;
         boolean scoreClearedNotice=false;
         float scoreNoticeTimer=0f;
@@ -247,6 +248,12 @@ public class GameV2Activity extends Activity {
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
         int lastProtectedBonus=0;
+        long phasePlayStartMs=0L;
+        int phaseTimeBonus=0;
+        String phaseClock="12:00";
+        boolean phaseDay=true,phaseRain=false,phaseWeatherLoading=false;
+        int phaseCloudCover=0,phaseWeatherCode=0;
+        float rainTimer=0f;
         int damageCols=154,damageRows=11;
         float damageCellW=CITY_BITMAP_W/154f,damageCellH=CITY_BITMAP_H/11f;
         boolean[][] citySolid,cityDestroyed,protectedCells;
@@ -257,9 +264,19 @@ public class GameV2Activity extends Activity {
 
         GameView(Context c){
             super(c); setFocusable(true); pixel.setAntiAlias(false); pixel.setFilterBitmap(false); tintPaint.setAntiAlias(false);
-            audio=new AudioBank(c); loadAssets(); loadAudio();
+            audio=new AudioBank(c); loadAssets(); loadAudio(); loadSettings();
             introWhiteFade=GameV2Activity.this.getIntent().getBooleanExtra("fromSplash",false)?.30f:0f;
             audio.playMusic("musica_menu.ogg",.42f);
+        }
+
+        void loadSettings(){
+            SharedPreferences sp=getContext().getSharedPreferences("config",Context.MODE_PRIVATE);
+            dynamicWeatherEnabled=sp.getBoolean("dynamicWeatherEnabled",false);
+        }
+
+        void saveSettings(){
+            getContext().getSharedPreferences("config",Context.MODE_PRIVATE).edit()
+                    .putBoolean("dynamicWeatherEnabled",dynamicWeatherEnabled).apply();
         }
 
         void loadAssets(){
