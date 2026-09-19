@@ -79,6 +79,23 @@ public class GameLogicTest {
         assertTrue(w.spawnSeconds()>=.82f);
     }
 
+    @Test public void toleranciaDeAcertoDiminuiComADificuldade() {
+        assertEquals(1.30f,WaveManager.hitRadiusMultiplier(0),.0001f);
+        assertEquals(1.25f,WaveManager.hitRadiusMultiplier(1),.0001f);
+        assertEquals(1.20f,WaveManager.hitRadiusMultiplier(2),.0001f);
+        assertEquals(1.15f,WaveManager.hitRadiusMultiplier(3),.0001f);
+        assertEquals(1.10f,WaveManager.hitRadiusMultiplier(4),.0001f);
+        assertEquals(1.00f,WaveManager.hitRadiusMultiplier(5),.0001f);
+
+        // Meteoro de raio 20: ponto a 24 unidades acerta no médio (+20%),
+        // mas não no insano (raio exato).
+        assertTrue(WaveManager.hitsMeteor(100f,100f,20f,124f,100f,2));
+        assertFalse(WaveManager.hitsMeteor(100f,100f,20f,124f,100f,5));
+
+        // O teste é circular: um ponto fora da circunferência ampliada não acerta.
+        assertFalse(WaveManager.hitsMeteor(100f,100f,20f,125f,125f,1));
+    }
+
     @Test public void meteorosClassicosIniciaisSaoResolutiveisComDoisETres() {
         Random r=new Random(12345);
         for(int i=0;i<300;i++){
