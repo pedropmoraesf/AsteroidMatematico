@@ -418,6 +418,7 @@ public class GameV2Activity extends Activity {
             int refRight=right?1527:747;
             int refTop=right?rightTop[row]:leftTop[row];
             int refBottom=right?rightBottom[row]:leftBottom[row];
+            if(phase==2)refTop=8;
             if(cityAtlas==null)return new Rect(0,0,1,1);
             float sx=cityAtlas.getWidth()/1536f;
             float sy=cityAtlas.getHeight()/1024f;
@@ -461,8 +462,19 @@ public class GameV2Activity extends Activity {
             cityRuntimeCanvas.drawColor(Color.TRANSPARENT,PorterDuff.Mode.CLEAR);
             if(source!=null){
                 Rect sourceRect=src!=null?src:new Rect(0,0,source.getWidth(),source.getHeight());
-                cityRuntimeCanvas.drawBitmap(source,sourceRect,new Rect(0,0,CITY_BITMAP_W,CITY_BITMAP_H),pixel);
-                if(atlasSource)clearAtlasBackground(cityRuntime);
+                float scale=CITY_BITMAP_W/(float)Math.max(1,sourceRect.width());
+                int destH=Math.max(1,Math.min(CITY_BITMAP_H,Math.round(sourceRect.height()*scale)));
+                int destTop=CITY_BITMAP_H-destH;
+                cityRuntimeCanvas.drawBitmap(source,sourceRect,new Rect(0,destTop,CITY_BITMAP_W,CITY_BITMAP_H),pixel);
+                if(atlasSource){
+                    clearAtlasBackground(cityRuntime);
+                    if(waves.wave==2){
+                        Paint erase=new Paint();
+                        erase.setXfermode(new android.graphics.PorterDuffXfermode(PorterDuff.Mode.CLEAR));
+                        cityRuntimeCanvas.drawRect(0,destTop,225,Math.min(CITY_BITMAP_H,destTop+34),erase);
+                        erase.setXfermode(null);
+                    }
+                }
             }
             cityImg=cityRuntime;
         }
