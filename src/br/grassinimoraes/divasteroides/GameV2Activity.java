@@ -1626,7 +1626,7 @@ public class GameV2Activity extends Activity {
             if(rows.isEmpty())drawText(c,"NENHUMA PONTUACAO SALVA",400,205,17,Color.WHITE,true);else{int max=Math.min(7,rows.size());for(int i=0;i<max;i++){String[] v=rows.get(i);float y=158+i*29;drawText(c,v[0],195,y,12,Color.WHITE,true);drawText(c,v[1],410,y,14,Color.YELLOW,true);drawText(c,v[2],570,y,14,Color.WHITE,true);}}drawMenuButton(c,new RectF(310,355,490,395),"VOLTAR",false);
         }
 
-        String difficultyName(){String[] n={"MUITO FACIL","FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
+        String difficultyName(){String[] n={"FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
         void drawOptions(Canvas c){
             drawDarkCard(c,170,24,630,452);drawText(c,"OPCOES",400,57,28,Color.CYAN,true);
             drawMenuButton(c,new RectF(235,74,565,111),"DIFICULDADE: "+difficultyName(),false);
@@ -1673,22 +1673,23 @@ public class GameV2Activity extends Activity {
 
         void drawGame(Canvas c){
             drawSky(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawProtectedSiteDamage(c);drawShieldDome(c);
-            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
+            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}drawPlaneDebris(c);for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+waves.wave,400,112,22,Color.YELLOW,true);
                 drawText(c,"PROTEJA "+phaseCityName()+"!",400,154,31,Color.WHITE,true);
                 drawText(c,phaseObjective(),400,194,15,Color.CYAN,true);
-                if(lastDivisorAcquired>0)drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
+                if(lastWeaponAcquired>0)drawText(c,"SUBTRATOR "+lastWeaponAcquired+" COMPRADO",400,230,17,Color.YELLOW,true);
                 drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
             }
             if(waveClear){
                 p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+completedWave+" CONCLUIDA",400,158,34,Color.CYAN,true);
-                drawText(c,"CIDADE REPARADA - 100%",400,198,17,Color.WHITE,true);
+                drawText(c,"SAUDE DA CIDADE: "+Math.round(cityHealth)+"%",400,198,17,Color.WHITE,true);
                 if(completedWave>1){
-                    if(lastProtectedBonus>0)drawText(c,"OBJETIVO PRESERVADO  +"+lastProtectedBonus+" PONTOS",400,230,15,Color.YELLOW,true);
-                    else drawText(c,"OBJETIVO ESTRATEGICO PERDIDO",400,230,15,Color.RED,true);
+                    if(lastProtectedMoneyDelta>0)drawText(c,"MONUMENTO: +R$"+lastProtectedMoneyDelta,400,230,15,Color.YELLOW,true);
+                    else if(lastProtectedMoneyDelta<0)drawText(c,"MONUMENTO: -R$"+Math.abs(lastProtectedMoneyDelta),400,230,15,Color.RED,true);
+                    else drawText(c,"MONUMENTO SEM BONUS",400,230,15,Color.LTGRAY,true);
                 }
                 drawText(c,"BONUS DE TEMPO  +"+phaseTimeBonus,400,264,16,Color.YELLOW,true);
                 drawText(c,"TEMPO DE COMBATE  "+Math.round(phaseActiveSeconds)+"s",400,292,13,Color.WHITE,true);
@@ -1789,11 +1790,18 @@ public class GameV2Activity extends Activity {
 
         void drawProtectedSiteDamage(Canvas c){
             if(!protectedSiteActive()||protectedCells==null||cityDestroyed==null)return;
+            long blinkPhase=SystemClock.uptimeMillis()%5000L;
+            boolean monumentBlink=blinkPhase<520L;
+            int blinkAlpha=monumentBlink?(int)(70+90*Math.abs(Math.sin(blinkPhase/55.0))):0;
             int flicker=(int)(SystemClock.uptimeMillis()/85)%3;
             for(int row=0;row<damageRows;row++){
                 for(int col=0;col<damageCols;col++){
-                    if(!protectedCells[row][col]||!cityDestroyed[row][col])continue;
+                    if(!protectedCells[row][col])continue;
                     RectF r=cellWorldRect(row,col);
+                    if(monumentBlink&&!cityDestroyed[row][col]){
+                        p.setColor(Color.argb(blinkAlpha,90,245,255));c.drawRect(r,p);
+                    }
+                    if(!cityDestroyed[row][col])continue;
                     p.setColor(Color.argb(205,28,25,22));c.drawRect(r,p);
                     p.setColor(Color.rgb(92,88,82));
                     c.drawRect(r.left,r.bottom-Math.max(1f,r.height()*.30f),r.right,r.bottom,p);
@@ -1899,7 +1907,7 @@ public class GameV2Activity extends Activity {
             if(aimTargetSheet!=null)drawTile(c,aimTargetSheet,8,1,aimTargetIndex,new RectF(aimX-r,aimY-r,aimX+r,aimY+r),pixel);
             else{p.setColor(Color.RED);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawCircle(aimX,aimY,r,p);p.setStyle(Paint.Style.FILL);}
             if(aiming){
-                String v=selectedMode==1?"SUB "+Math.max(1,inv.subtractorValue):String.valueOf(currentChargedDivisor());
+                String v=selectedMode==1?"H":String.valueOf(currentChargedDivisor());
                 drawOutlinedText(c,v,aimX,Math.max(18,aimY-r-7),13,aimCharge>0?Color.CYAN:Color.WHITE);
             }
         }
@@ -1911,6 +1919,8 @@ public class GameV2Activity extends Activity {
                 Paint use=pixel;
                 if(m.kind==Kind.MULT){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(80,205,105),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
                 else if(m.kind==Kind.ADD){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,220,80),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                else if(m.kind==Kind.SUB){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,105,120),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                else if(m.kind==Kind.DIV){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(90,205,255),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
                 int frame=((int)(SystemClock.uptimeMillis()/130)+Math.abs(m.originalValue))%4;
                 RectF dest=new RectF(m.x-m.radius,m.y-m.radius,m.x+m.radius,m.y+m.radius);
                 if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,frame,dest,use);
@@ -1918,7 +1928,7 @@ public class GameV2Activity extends Activity {
                 tintPaint.setColorFilter(null);
                 String text;
                 if(bombSequence)text="0x"+m.value;
-                else text=(m.kind==Kind.ADD||m.kind==Kind.MULT)?m.quiz.expression():String.valueOf(m.value);
+                else text=isQuizKind(m.kind)&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
                 drawText(c,text,m.x,m.y+5,15,Color.WHITE,true);
             }
             if(m.targetBlink&&((int)(m.blinkTime*10)%2==0)){
@@ -1927,8 +1937,30 @@ public class GameV2Activity extends Activity {
             }
         }
 
-        void drawBonusMeteor(Canvas c,Meteor m){Bitmap icon=null;if(m.bonus==Bonus.MONEY)icon=moneyImg;else if(m.bonus==Bonus.SUBTRACTOR)icon=subImg;else if(m.bonus==Bonus.BOMB0)icon=bombImg;if(icon!=null)c.drawBitmap(icon,null,new RectF(m.x-17,m.y-17,m.x+17,m.y+17),pixel);else{int tile=m.bonus==Bonus.HEALTH?4:m.bonus==Bonus.SHIELD?5:1;if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,tile,new RectF(m.x-17,m.y-17,m.x+17,m.y+17),pixel);else{p.setColor(Color.rgb(60,135,190));c.drawCircle(m.x,m.y,17,p);}}drawText(c,bonusText(m),m.x,m.y+5,13,Color.WHITE,true);}
-        String bonusText(Meteor m){switch(m.bonus){case AMMO:return "+"+m.ammoValue;case SUBTRACTOR:return "SUB "+m.value;case MONEY:return "$"+m.value;case HEALTH:return "+"+m.value;case SHIELD:return "ESC";default:return "x0";}}
+        void drawBonusMeteor(Canvas c,Meteor m){
+            RectF dst=new RectF(m.x-17,m.y-17,m.x+17,m.y+17);
+            if(m.bonus==Bonus.AMMO&&projectileSheet!=null){
+                drawTile(c,projectileSheet,8,1,projectileIndexForDivisor(m.ammoValue),dst,pixel);
+            }else if(m.bonus==Bonus.H&&projectileSheet!=null){
+                drawTile(c,projectileSheet,8,1,7,dst,pixel);
+            }else{
+                Bitmap icon=null;if(m.bonus==Bonus.MONEY)icon=moneyImg;else if(m.bonus==Bonus.BOMB0)icon=bombImg;
+                if(icon!=null)c.drawBitmap(icon,null,dst,pixel);
+                else{int tile=m.bonus==Bonus.HEALTH?4:m.bonus==Bonus.SHIELD?5:1;if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,tile,dst,pixel);else{p.setColor(Color.rgb(60,135,190));c.drawCircle(m.x,m.y,17,p);}}
+            }
+            drawText(c,bonusText(m),m.x,m.y+5,12,Color.WHITE,true);
+        }
+        String bonusText(Meteor m){switch(m.bonus){case AMMO:return "+2 /"+m.ammoValue;case H:return "H +1";case MONEY:return "R$"+m.value;case HEALTH:return "+"+m.value;case SHIELD:return "ESC";default:return "x0";}}
+        void drawPlaneDebris(Canvas c){
+            if(planeDebris.isEmpty()||planeCommercial==null)return;
+            for(PlaneDebris d:planeDebris){
+                c.save();c.rotate(d.angle,d.x,d.y);
+                RectF dst=new RectF(d.x-d.w*.5f,d.y-d.h*.5f,d.x+d.w*.5f,d.y+d.h*.5f);
+                c.drawBitmap(planeCommercial,d.src,dst,pixel);
+                c.restore();
+            }
+        }
+
         void drawPlane(Canvas c,Plane pl){
             Bitmap b=pl.military?planeMilitary:planeCommercial;
             RectF r=pl.bounds();
