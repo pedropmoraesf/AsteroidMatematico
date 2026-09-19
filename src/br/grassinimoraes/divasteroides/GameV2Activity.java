@@ -804,13 +804,15 @@ public class GameV2Activity extends Activity {
             if(!subtractionMechanic)return;
             int weapon=nextPurchasableWeapon();
             if(weapon<=2)return;
-            if(inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;return;}
+            if(inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;addHudNotice("ARMA "+weapon+" SELECIONADA",Color.CYAN);return;}
             int cost=weaponPurchaseCost(weapon);
-            if(inv.money<cost)return;
+            if(inv.money<cost){addHudNotice("SALDO INSUFICIENTE PARA ARMA "+weapon,Color.RED);return;}
             inv.money-=cost;
             int unlockPhase=weaponUnlockPhase(weapon);
-            inv.unlockWeapon(weapon,3*targetForPhase(unlockPhase));
+            int initial=3*targetForPhase(unlockPhase);
+            inv.unlockWeapon(weapon,initial);
             inv.selectedWeapon=weapon;
+            addHudNotice("-R$ "+cost+"  ARMA "+weapon+" +"+initial,Color.YELLOW);
             audio.play("municao_desbloqueada.wav");
         }
 
@@ -819,23 +821,26 @@ public class GameV2Activity extends Activity {
             int weapon=shopAmmoWeapon();
             if(weapon<=2||!inv.hasWeapon(weapon))return;
             int cost=ammoPackCost(weapon);
-            if(inv.money<cost)return;
+            if(inv.money<cost){addHudNotice("SALDO INSUFICIENTE PARA MUNICAO",Color.RED);return;}
             inv.money-=cost;
             inv.addWeaponAmmo(weapon,2);
+            addHudNotice("-R$ "+cost+"  MUNICAO "+weapon+" +2",Color.YELLOW);
             audio.play("bonus_municao.wav");
         }
 
         void buyHyper(){
-            if(inv.money<SHOP_H_COST)return;
+            if(inv.money<SHOP_H_COST){addHudNotice("SALDO INSUFICIENTE PARA H",Color.RED);return;}
             inv.money-=SHOP_H_COST;
             inv.addHyper(1);
+            addHudNotice("-R$ "+SHOP_H_COST+"  H +1",Color.CYAN);
             audio.play("bonus_municao.wav");
         }
 
         void buyBomb(){
-            if(inv.money<SHOP_BOMB_COST)return;
+            if(inv.money<SHOP_BOMB_COST){addHudNotice("SALDO INSUFICIENTE PARA x0",Color.RED);return;}
             inv.money-=SHOP_BOMB_COST;
             inv.bombZero++;
+            addHudNotice("-R$ "+SHOP_BOMB_COST+"  x0 +1",Color.rgb(255,150,110));
             audio.play("bonus_municao.wav");
         }
 
@@ -846,6 +851,7 @@ public class GameV2Activity extends Activity {
             if(!hasTarget){audio.play("divisao_errada.wav");return;}
             inv.bombZero--;
             bombSequence=true;bombSequenceTimer=1.05f;bombFlashTimer=BOMB_FLASH_DURATION;
+            addHudNotice("BOMBA x0 ACIONADA",Color.rgb(255,150,110));
             audio.play("bomba_zero.wav");
             for(Meteor m:meteors)if(!m.dead){m.targetBlink=true;m.blinkTime=0;}
         }
@@ -2556,9 +2562,14 @@ public class GameV2Activity extends Activity {
 
             if(subUse.contains(x,y)){selectedMode=1;return true;}
             if(bombRect.contains(x,y)){startBombSequence();return true;}
-            if(repairRect.contains(x,y)&&inv.repair10Percent(cityHealth)){
-                cityHealth=Math.min(100f,cityHealth+10f);
-                audio.play("reconstrucao_cidade.wav");
+            if(repairRect.contains(x,y)){
+                int cost=inv.repairCost10Percent();
+                if(inv.repair10Percent(cityHealth)){
+                    cityHealth=Math.min(100f,cityHealth+10f);
+                    addHudNotice("-R$ "+cost+"  REPARO +10%",Color.GREEN);
+                    audio.play("reconstrucao_cidade.wav");
+                }else if(cityHealth>=100f)addHudNotice("CIDADE JA ESTA 100%",Color.LTGRAY);
+                else addHudNotice("SEM SALDO PARA REPARAR",Color.RED);
                 return true;
             }
             return true;
