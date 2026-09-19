@@ -174,7 +174,7 @@ public class GameV2Activity extends Activity {
     final class GameView extends View implements Runnable {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
-        static final int SHOP_H_COST=120, SHOP_BOMB_COST=100;
+        static final int SHOP_H_COST=400, SHOP_BOMB_COST=100;
         static final int CITY_BITMAP_W=800, CITY_BITMAP_H=220;
         static final float CITY_TOP=170f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
@@ -1403,12 +1403,19 @@ public class GameV2Activity extends Activity {
             m.kind=Kind.BONUS;m.radius=18;int r=rnd.nextInt(100);
             if(!subtractionMechanic){
                 int candidate=nextLockedPrime();
-                if(candidate>0&&r<28){m.bonus=Bonus.AMMO;m.ammoValue=candidate;m.value=candidate;return;}
+                if(candidate>0&&r<22){m.bonus=Bonus.AMMO;m.ammoValue=candidate;m.value=candidate;return;}
+                if(r<30){m.bonus=Bonus.HYPER;m.value=1;}
+                else if(r<57){m.bonus=Bonus.MONEY;m.value=25+Math.min(50,waves.wave*3);}
+                else if(r<74){m.bonus=Bonus.HEALTH;m.value=10;}
+                else if(r<89){m.bonus=Bonus.SHIELD;m.value=10;}
+                else{m.bonus=Bonus.BOMB0;m.value=0;}
+                return;
             }
-            if(r<44){m.bonus=Bonus.HYPER;m.value=1;}
-            else if(r<65){m.bonus=Bonus.MONEY;m.value=25+Math.min(50,waves.wave*3);}
-            else if(r<80){m.bonus=Bonus.HEALTH;m.value=10;}
-            else if(r<93){m.bonus=Bonus.SHIELD;m.value=10;}
+            // H é deliberadamente raro: é o único disparo que ignora o valor do meteoro.
+            if(r<10){m.bonus=Bonus.HYPER;m.value=1;}
+            else if(r<45){m.bonus=Bonus.MONEY;m.value=25+Math.min(50,waves.wave*3);}
+            else if(r<65){m.bonus=Bonus.HEALTH;m.value=10;}
+            else if(r<82){m.bonus=Bonus.SHIELD;m.value=10;}
             else{m.bonus=Bonus.BOMB0;m.value=0;}
         }
 
@@ -1594,7 +1601,7 @@ public class GameV2Activity extends Activity {
                         // Itens perdidos simplesmente saem da fase; não ferem a cidade.
                     }else if(isQuizMeteor(m)){
                         applyCityImpact(m.x,collisionY,Math.max(8f,cityHealth*.12f),m.radius,m.originalValue);
-                        damageCity(Math.max(.1f,cityHealth*.5f),m.x,false);
+                        damageCity(cityHealth*.5f,m.x,false);
                     }else{
                         float impact=Math.min(18,4+m.value/18f);
                         applyCityImpact(m.x,collisionY,impact,m.radius,m.originalValue);
