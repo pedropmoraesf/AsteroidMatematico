@@ -351,7 +351,7 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
             cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
@@ -359,7 +359,7 @@ public class GameV2Activity extends Activity {
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
+            aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
             protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=WaveManager.targetForWave(1);waves.difficulty=selectedDifficulty;
@@ -382,9 +382,13 @@ public class GameV2Activity extends Activity {
             audio.setMusicPaused(false);playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
         }
 
-        String phaseCityName(){
+        String phaseCityNameFor(int phase){
             String[] names={"","SAO GONCALO/RJ","RIO DE JANEIRO","SAO PAULO","BELO HORIZONTE","SALVADOR","RECIFE","FORTALEZA","CURITIBA","PORTO ALEGRE","MANAUS","CAMPOS DOS GOYTACAZES","BELEM","SAO LUIS","TERESINA","NATAL","JOAO PESSOA","MACEIO","ARACAJU","CUIABA","GOIANIA","VITORIA","FLORIANOPOLIS","CAMPO GRANDE","PALMAS","BRASILIA"};
-            return names[Math.max(1,Math.min(25,waves.wave))];
+            return names[Math.max(1,Math.min(25,phase))];
+        }
+
+        String phaseCityName(){
+            return phaseCityNameFor(waves.wave);
         }
 
         String phaseObjective(){
@@ -1409,16 +1413,16 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
+            aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
-            waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
+            waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",WaveManager.targetForWave(waves.wave)));
             selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
             subtractionMechanic=sp.getBoolean("subtractionMechanic",subtractionMechanic);
             cityHealth=Math.max(.1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
@@ -1461,8 +1465,8 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
-            cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
+            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;shotHyper=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
 
@@ -2114,7 +2118,7 @@ public class GameV2Activity extends Activity {
             p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
             drawDarkCard(c,145,18,655,378);
             drawText(c,"INTERVALO ENTRE FASES",400,52,24,Color.CYAN,true);
-            drawText(c,"DINHEIRO: R$ "+inv.money,400,82,15,Color.YELLOW,true);
+            drawText(c,"DINHEIRO: R$ "+inv.money+"   H x"+inv.hyperAmmo+"   x0 x"+inv.bombZero,400,82,14,Color.YELLOW,true);
 
             shopWeaponRect.set(205,104,595,139);
             shopAmmoRect.set(205,146,595,181);
@@ -2142,7 +2146,10 @@ public class GameV2Activity extends Activity {
             }
 
             drawMenuButton(c,shopHyperRect,"ARMA H +1   R$ "+SHOP_H_COST,false);
-            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   R$ "+SHOP_BOMB_COST,false);
+            drawMenuButton(c,shopBombRect,"BOMBA x0 +1   R$ "+SHOP_BOMB_COST,false);
+            drawText(c,"SALDO COMPARTILHADO: ARMA / MUNICAO / H / x0",400,288,10,Color.LTGRAY,true);
+            int nextPhase=Math.min(WaveManager.MAX_WAVE,waves.wave+1);
+            drawText(c,"PROXIMA CIDADE: "+phaseCityNameFor(nextPhase)+"   META "+targetForPhase(nextPhase),400,306,10,Color.CYAN,true);
             drawMenuButton(c,shopNextRect,"PROXIMA FASE",true);
         }
 
