@@ -34,6 +34,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -145,8 +146,8 @@ public class GameV2Activity extends Activity {
         }
     }
 
-    enum Kind { NORMAL, ADD, MULT, BONUS }
-    enum Bonus { AMMO, SUBTRACTOR, MONEY, HEALTH, SHIELD, BOMB0 }
+    enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
+    enum Bonus { AMMO, H, MONEY, HEALTH, SHIELD, BOMB0 }
 
     static final class Meteor {
         float x,y,radius,speed; int value, originalValue; Kind kind; Bonus bonus; int ammoValue;
@@ -160,10 +161,21 @@ public class GameV2Activity extends Activity {
         RectF bounds(){ return new RectF(x-(military?50:56),y-(military?17:19),x+(military?50:56),y+(military?17:19)); }
     }
 
+    static final class PlaneDebris {
+        float x,y,vx,vy,w,h,angle,spin;
+        Rect src;
+        boolean dangerous;
+        PlaneDebris(float x,float y,float vx,float vy,float w,float h,float angle,float spin,Rect src,boolean dangerous){
+            this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.w=w;this.h=h;
+            this.angle=angle;this.spin=spin;this.src=src;this.dangerous=dangerous;
+        }
+    }
+
     final class GameView extends View implements Runnable {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
-        static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
+        static final int SHOP_H_COST=200, SHOP_BOMB_COST=100;
+        static final int WEAPON_PRICE_MULTIPLIER=4;
         static final int CITY_BITMAP_W=800, CITY_BITMAP_H=220;
         static final float CITY_TOP=170f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
@@ -176,13 +188,14 @@ public class GameV2Activity extends Activity {
         final List<Meteor> meteors=new ArrayList<Meteor>();
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
+        final List<PlaneDebris> planeDebris=new ArrayList<PlaneDebris>();
         final AudioBank audio;
-        final RectF[] divisorRects=new RectF[MeteorMathV2.PRIMES.length];
-        final RectF subMinus=new RectF(),subPlus=new RectF(),subUse=new RectF(),bombRect=new RectF(),repairRect=new RectF(),pauseRect=new RectF();
+        final RectF[] divisorRects=new RectF[MeteorMathV2.WEAPONS.length];
+        final RectF hRect=new RectF(),bombRect=new RectF(),repairRect=new RectF(),pauseRect=new RectF();
         final RectF[] menuButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
         final RectF[] pauseButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
         final RectF victoryMenuRect=new RectF(),victoryExitRect=new RectF();
-        final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
+        final RectF shopWeaponRect=new RectF(),shopAmmoRect=new RectF(),shopHRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet,planeBombImg;
         Bitmap cityImg,baseCityImg,cityAtlas,cityRuntime,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
@@ -234,7 +247,11 @@ public class GameV2Activity extends Activity {
         float bombSequenceTimer=0f;
         Meteor pendingBonusTarget;
         float pendingBonusTimer=0f;
-        int lastDivisorAcquired=0;
+        int lastWeaponAcquired=0;
+        boolean ammoDropTriggered=false;
+        int phaseQuizCount=0;
+        MeteorMathV2.Operation lastQuizOperation=null;
+        final ArrayList<MeteorMathV2.Operation> quizBag=new ArrayList<MeteorMathV2.Operation>();
         boolean aiming=false;
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
         long aimDownTime=0L;
@@ -248,6 +265,7 @@ public class GameV2Activity extends Activity {
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
         int lastProtectedBonus=0;
+        int lastProtectedMoneyDelta=0;
         float phaseActiveSeconds=0f;
         int phaseTimeBonus=0;
         String phaseClock="12:00";
@@ -319,18 +337,19 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
+            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastWeaponAcquired=0;
+            ammoDropTriggered=false;phaseQuizCount=0;lastQuizOperation=null;quizBag.clear();
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
-            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
+            protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;lastProtectedMoneyDelta=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
-            inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
-            inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
+            inv.weapons.clear();inv.weapons.add(2);inv.ammo.clear();inv.selectedWeapon=2;
+            inv.hAmmo=0;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;
             preparePhase();
             playWaveMusic();
@@ -359,16 +378,7 @@ public class GameV2Activity extends Activity {
             return "O "+protectedSiteName()+" DEVE SOBREVIVER";
         }
 
-        int scheduledDivisorForPhase(){
-            switch(waves.wave){
-                case 2:return 5;
-                case 5:return 7;
-                case 8:return 11;
-                case 11:return 13;
-                case 14:return 17;
-                default:return 0;
-            }
-        }
+        int weaponForPhase(){return waves.currentWeaponValue();}
 
         String protectedSiteName(){
             String[] names={"","",
@@ -648,15 +658,17 @@ public class GameV2Activity extends Activity {
         void preparePhase(){
             phaseActiveSeconds=0f;phaseTimeBonus=0;
             capturePhaseEnvironment();
-            lastDivisorAcquired=scheduledDivisorForPhase();
-            if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
+            ammoDropTriggered=false;phaseQuizCount=0;
+            if(waves.wave>=8&&inv.hasWeapon(128)){
+                inv.setAmmo(128,Math.max(inv.ammoFor(128),waves.phaseAmmoCapacity()));
+            }
             loadCityForPhase();
             initializeDamageGrid();
             protectedSiteHealth=100f;
             protectedSiteDestroyed=false;
             protectedSiteBonusAwarded=false;
             protectedFireTimer=0f;
-            lastProtectedBonus=0;
+            lastProtectedBonus=0;lastProtectedMoneyDelta=0;
         }
 
         void startIntermission(){
@@ -671,11 +683,36 @@ public class GameV2Activity extends Activity {
             beginNextWave();
         }
 
-        void buySubtractor(){
-            if(inv.money<SHOP_SUBTRACTOR_COST)return;
-            inv.money-=SHOP_SUBTRACTOR_COST;
-            inv.addSubtractor(10);
-            audio.play("bonus_subtrator.wav");
+        int nextShopPhase(){return Math.min(WaveManager.MAX_WAVE,waves.wave+1);}
+        int shopWeaponValue(){return WaveManager.weaponAvailableForWave(nextShopPhase());}
+        int nextPhaseTarget(){int next=nextShopPhase();return Math.min(12,4+next);}
+
+        void buyAvailableWeapon(){
+            int weapon=shopWeaponValue();
+            if(weapon<=2||inv.hasWeapon(weapon))return;
+            int cost=weapon*WEAPON_PRICE_MULTIPLIER;
+            if(inv.money<cost)return;
+            inv.money-=cost;
+            inv.unlockWeapon(weapon,nextPhaseTarget()*3);
+            inv.selectedWeapon=weapon;selectedMode=0;lastWeaponAcquired=weapon;
+            audio.play("municao_desbloqueada.wav");
+        }
+
+        void buySelectedAmmo(){
+            int weapon=inv.selectedWeapon;
+            if(weapon<=2||!inv.hasWeapon(weapon))return;
+            int cost=weapon*2;
+            if(inv.money<cost)return;
+            inv.money-=cost;
+            inv.addAmmo(weapon,2);
+            audio.play("bonus_municao.wav");
+        }
+
+        void buyH(){
+            if(inv.money<SHOP_H_COST)return;
+            inv.money-=SHOP_H_COST;
+            inv.addH(1);
+            audio.play("bonus_municao.wav");
         }
 
         void buyBomb(){
@@ -716,16 +753,15 @@ public class GameV2Activity extends Activity {
         }
 
         int projectileIndexForDivisor(int d){
-            for(int i=0;i<MeteorMathV2.PRIMES.length;i++)if(MeteorMathV2.PRIMES[i]==d)return i;
-            return 0;
+            int idx=MeteorMathV2.weaponIndex(d);
+            return idx<0?0:idx;
         }
 
-        int currentAimIndex(){return selectedMode==1?7:projectileIndexForDivisor(inv.selectedDivisor);}
+        int currentAimIndex(){return selectedMode==1?7:projectileIndexForDivisor(inv.selectedWeapon);}
 
         int currentChargedDivisor(){
-            int base=Math.max(2,inv.selectedDivisor);
-            if(selectedMode==1)return Math.max(1,inv.subtractorValue);
-            return aimCharged?base*base:base;
+            if(selectedMode==1)return MeteorMathV2.MAX_METEOR_VALUE;
+            return Math.max(2,inv.selectedWeapon);
         }
 
         void pointCannonAt(float tx,float ty){
@@ -734,7 +770,7 @@ public class GameV2Activity extends Activity {
         }
 
         void emitHudChargeBurst(){
-            int idx=projectileIndexForDivisor(inv.selectedDivisor);
+            int idx=projectileIndexForDivisor(inv.selectedWeapon);
             RectF r=(idx>=0&&idx<divisorRects.length)?divisorRects[idx]:null;
             float cx=r!=null?r.centerX():30f+idx*36f;
             float cy=r!=null?r.centerY():440f;
@@ -753,7 +789,7 @@ public class GameV2Activity extends Activity {
                 if(!aimCharged){
                     aimCharged=true;
                     aimCharge=1f;
-                    chargedProjectileValue=inv.selectedDivisor*inv.selectedDivisor;
+                    chargedProjectileValue=inv.selectedWeapon;
                     hudChargeFlashTimer=.55f;
                     emitHudChargeBurst();
                     float cy=deployedCannonY();
@@ -778,7 +814,7 @@ public class GameV2Activity extends Activity {
                 }
             }else if(!aimCharged){
                 aimCharge=0f;
-                chargedProjectileValue=selectedMode==1?Math.max(1,inv.subtractorValue):inv.selectedDivisor;
+                chargedProjectileValue=selectedMode==1?MeteorMathV2.MAX_METEOR_VALUE:inv.selectedWeapon;
             }
         }
 
@@ -1007,30 +1043,40 @@ public class GameV2Activity extends Activity {
                 cannonDeploy=1f-(float)Math.pow(1f-Math.max(0,Math.min(1,raw)),3);
                 emitCannonDirt(dt);
                 updateParticles(dt);
-                if(preWaveTimer<=0){preWave=false;running=true;cannonDeploy=1f;audio.stopLong();audio.play("chuva_meteoros_inicio.wav");}
+                if(preWaveTimer<=0){preWave=false;running=true;cannonDeploy=1f;lastWeaponAcquired=0;audio.stopLong();audio.play("chuva_meteoros_inicio.wav");}
                 return;
             }
             updateCityFireParticles(dt);updateShield(dt);
             phaseActiveSeconds+=dt;
+            triggerPhaseAmmoDrop();
             if(gameOver||quizOpen){updateParticles(dt);updateMilitary(dt);return;}
             if(!waves.complete()){
                 spawnTimer-=dt;
                 if(spawnTimer<=0){spawnMeteor();spawnTimer=waves.spawnSeconds()*(.82f+rnd.nextFloat()*.36f);}
                 if(commercial==null&&rnd.nextFloat()<waves.commercialPlaneChancePerSecond()*dt*60f)spawnCommercial();
             }
-            updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updateParticles(dt);
-            if(waves.complete()&&meteors.isEmpty()&&military==null){
+            updatePlane(commercial,dt);updateMilitary(dt);updateMeteors(dt);updatePlaneDebris(dt);updateParticles(dt);
+            if(waves.complete()&&meteors.isEmpty()&&military==null&&planeDebris.isEmpty()){
                 audio.play("fase_concluida.wav");
-                if(protectedSiteActive()&&!protectedSiteDestroyed&&!protectedSiteBonusAwarded){
-                    lastProtectedBonus=250+waves.wave*10;
-                    score+=lastProtectedBonus;
+                lastProtectedBonus=0;lastProtectedMoneyDelta=0;
+                if(protectedSiteActive()&&!protectedSiteBonusAwarded){
+                    if(protectedSiteDestroyed||protectedSiteHealth<=0f){
+                        float penaltyRate=.10f+.05f*Math.max(0,Math.min(4,selectedDifficulty));
+                        int penalty=inv.money<=0?0:Math.max(1,(int)Math.ceil(inv.money*penaltyRate));
+                        inv.money=Math.max(0,inv.money-penalty);
+                        lastProtectedMoneyDelta=-penalty;
+                    }else{
+                        int fullBonus=120+waves.wave*20+selectedDifficulty*40;
+                        int bonus=Math.max(0,Math.round(fullBonus*(protectedSiteHealth/100f)));
+                        inv.money+=bonus;
+                        lastProtectedBonus=bonus;
+                        lastProtectedMoneyDelta=bonus;
+                    }
                     protectedSiteBonusAwarded=true;
-                }else lastProtectedBonus=0;
+                }
                 int maxTimeBonus=300+waves.targetThisWave*40+waves.wave*5;
                 phaseTimeBonus=Math.max(0,Math.round(maxTimeBonus-phaseActiveSeconds*4f));
                 score+=phaseTimeBonus;
-                if(cityHealth<100f)audio.play("reconstrucao_cidade.wav");
-                cityHealth=100f;
                 running=false;
                 completedWave=waves.wave;
                 waveClear=true;
@@ -1040,7 +1086,7 @@ public class GameV2Activity extends Activity {
 
         void startVictory(){
             victory=true;running=false;preWave=false;paused=false;quizOpen=false;waveClear=false;gameOver=false;
-            cityHealth=100f;fireworkTimer=0f;audio.stopLong();audio.playMusicOnce("vitoria_final.ogg",.42f);saveScore();
+            fireworkTimer=0f;audio.stopLong();audio.playMusicOnce("vitoria_final.ogg",.42f);saveScore();
         }
 
         void updateVictory(float dt){
@@ -1106,8 +1152,14 @@ public class GameV2Activity extends Activity {
         }
 
         void saveGame(){
-            StringBuilder divs=new StringBuilder();
-            for(Integer d:inv.divisors){if(divs.length()>0)divs.append(',');divs.append(d);}
+            StringBuilder weapons=new StringBuilder();
+            for(Integer weapon:inv.weapons){if(weapons.length()>0)weapons.append(',');weapons.append(weapon);}
+            StringBuilder ammo=new StringBuilder();
+            for(Integer weapon:inv.weapons){
+                if(weapon<=2)continue;
+                if(ammo.length()>0)ammo.append(',');
+                ammo.append(weapon).append(':').append(inv.ammoFor(weapon));
+            }
             savePrefs().edit()
                     .putBoolean("exists",true)
                     .putInt("wave",waves.wave)
@@ -1117,10 +1169,10 @@ public class GameV2Activity extends Activity {
                     .putFloat("cityHealth",cityHealth)
                     .putInt("score",score)
                     .putInt("destroyedTotal",destroyedTotal)
-                    .putString("divisors",divs.toString())
-                    .putInt("selectedDivisor",inv.selectedDivisor)
-                    .putInt("subtractorCharge",inv.subtractorCharge)
-                    .putInt("subtractorValue",inv.subtractorValue)
+                    .putString("weapons",weapons.toString())
+                    .putString("weaponAmmo",ammo.toString())
+                    .putInt("selectedWeapon",inv.selectedWeapon)
+                    .putInt("hAmmo",inv.hAmmo)
                     .putInt("money",inv.money)
                     .putInt("bombZero",inv.bombZero)
                     .putFloat("shieldSeconds",inv.shieldSeconds)
@@ -1136,29 +1188,46 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastWeaponAcquired=0;
+            ammoDropTriggered=false;phaseQuizCount=0;lastQuizOperation=null;quizBag.clear();
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
-            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
+            aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;lastProtectedMoneyDelta=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
             waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
-            selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
+            selectedDifficulty=Math.max(0,Math.min(4,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
             cityHealth=Math.max(1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
             score=Math.max(0,sp.getInt("score",0));destroyedTotal=Math.max(0,sp.getInt("destroyedTotal",0));
-            inv.divisors.clear();
-            String raw=sp.getString("divisors","2,3");
-            if(raw!=null)for(String part:raw.split(",")){try{int d=Integer.parseInt(part);if(d>=2&&d<=17&&MeteorMathV2.isPrime(d))inv.divisors.add(d);}catch(Exception ignored){}}
-            if(inv.divisors.isEmpty()){inv.divisors.add(2);inv.divisors.add(3);}
-            inv.selectedDivisor=sp.getInt("selectedDivisor",2);
-            if(!inv.divisors.contains(inv.selectedDivisor))inv.selectedDivisor=2;
-            inv.subtractorCharge=Math.max(0,sp.getInt("subtractorCharge",0));
-            inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
+
+            inv.weapons.clear();inv.ammo.clear();inv.weapons.add(2);
+            String raw=sp.getString("weapons",null);
+            if(raw==null)raw=sp.getString("divisors","2");
+            if(raw!=null)for(String part:raw.split(",")){
+                try{int weapon=Integer.parseInt(part.trim());if(MeteorMathV2.isWeaponValue(weapon))inv.weapons.add(weapon);}catch(Exception ignored){}
+            }
+            String rawAmmo=sp.getString("weaponAmmo","");
+            if(rawAmmo!=null&&!rawAmmo.isEmpty())for(String token:rawAmmo.split(",")){
+                try{
+                    String[] pair=token.split(":");
+                    if(pair.length==2){
+                        int weapon=Integer.parseInt(pair[0]),amount=Integer.parseInt(pair[1]);
+                        if(inv.hasWeapon(weapon)&&weapon>2)inv.setAmmo(weapon,amount);
+                    }
+                }catch(Exception ignored){}
+            }
+            for(Integer weapon:inv.weapons){
+                if(weapon>2&&!inv.ammo.containsKey(weapon))inv.setAmmo(weapon,waves.phaseAmmoCapacity());
+            }
+            int selected=sp.getInt("selectedWeapon",sp.getInt("selectedDivisor",2));
+            inv.selectedWeapon=inv.hasWeapon(selected)?selected:2;
+            inv.hAmmo=Math.max(0,sp.getInt("hAmmo",0));
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
+
             loadCityForPhase();initializeDamageGrid();
             restoreCityDamage(sp.getString("cityDamageGrid",""));
             protectedSiteHealth=waves.wave>1?Math.max(0f,Math.min(100f,sp.getFloat("protectedSiteHealth",100f))):100f;
@@ -1175,7 +1244,7 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
             cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
@@ -1198,16 +1267,52 @@ public class GameV2Activity extends Activity {
             if(vibrationEnabled){try{Vibrator v=(Vibrator)getContext().getSystemService(Context.VIBRATOR_SERVICE);if(v!=null)v.vibrate((long)(nuclear?650:65*escala));}catch(Exception ignored){}}
         }
 
+        boolean isQuizKind(Kind kind){
+            return kind==Kind.ADD||kind==Kind.SUB||kind==Kind.MULT||kind==Kind.DIV;
+        }
+
+        MeteorMathV2.Operation nextQuizOperation(){
+            if(quizBag.isEmpty()){
+                for(MeteorMathV2.Operation op:MeteorMathV2.Operation.values())quizBag.add(op);
+                Collections.shuffle(quizBag,rnd);
+                if(lastQuizOperation!=null&&quizBag.size()>1&&quizBag.get(0)==lastQuizOperation){
+                    MeteorMathV2.Operation t=quizBag.get(0);quizBag.set(0,quizBag.get(1));quizBag.set(1,t);
+                }
+            }
+            MeteorMathV2.Operation op=quizBag.remove(0);
+            lastQuizOperation=op;
+            return op;
+        }
+
+        Kind kindForOperation(MeteorMathV2.Operation op){
+            switch(op){
+                case SUB:return Kind.SUB;
+                case MULT:return Kind.MULT;
+                case DIV:return Kind.DIV;
+                default:return Kind.ADD;
+            }
+        }
+
+        void setupQuizMeteor(Meteor m){
+            MeteorMathV2.Operation op=nextQuizOperation();
+            m.kind=kindForOperation(op);
+            m.quiz=MeteorMathV2.generateQuiz(rnd,op,selectedDifficulty,waves.wave);
+            m.value=m.quiz.answer;m.originalValue=m.value;m.radius=22;
+            phaseQuizCount++;
+            audio.play((op==MeteorMathV2.Operation.MULT||op==MeteorMathV2.Operation.DIV)
+                    ?"meteoro_multiplicacao.wav":"meteoro_adicao.wav");
+        }
+
         void spawnMeteor(){
             Meteor m=new Meteor();m.y=-30;m.speed=waves.meteorSpeed()*(.85f+rnd.nextFloat()*.35f);m.radius=20;
             float roll=rnd.nextFloat();
-            if(roll<waves.bonusChance())setupBonus(m);
-            else if(roll<waves.bonusChance()+waves.specialChance()){
-                boolean mult=rnd.nextBoolean();m.kind=mult?Kind.MULT:Kind.ADD;m.quiz=MeteorMathV2.generateQuiz(rnd,mult,waves.wave);m.value=m.quiz.answer;m.originalValue=m.value;m.radius=22;audio.play(mult?"meteoro_multiplicacao.wav":"meteoro_adicao.wav");
-            }else{
+            boolean forceQuiz=waves.wave==1&&phaseQuizCount<4;
+            if(forceQuiz)setupQuizMeteor(m);
+            else if(roll<waves.bonusChance())setupBonus(m);
+            else if(roll<waves.bonusChance()+waves.specialChance())setupQuizMeteor(m);
+            else{
                 m.kind=Kind.NORMAL;
-                boolean largePrime=waves.allowLargePrime()&&inv.subtractorCharge>0;
-                m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),inv.highestDivisor(),largePrime);
+                m.value=MeteorMathV2.generateNormalValue(rnd,waves.maxMeteorValue(),waves.wave,selectedDifficulty);
                 m.originalValue=m.value;
             }
 
@@ -1226,21 +1331,102 @@ public class GameV2Activity extends Activity {
         }
 
         void setupBonus(Meteor m){
-            m.kind=Kind.BONUS;m.radius=18;int r=rnd.nextInt(100);int candidate=nextLockedPrime();
-            if(candidate>0&&r<34){m.bonus=Bonus.AMMO;m.ammoValue=candidate;m.value=candidate;}
-            else if(r<53){m.bonus=Bonus.SUBTRACTOR;m.value=10+Math.min(20,waves.wave*2);}
-            else if(r<70){m.bonus=Bonus.MONEY;m.value=25;}
-            else if(r<84){m.bonus=Bonus.HEALTH;m.value=15;}
-            else if(r<94){m.bonus=Bonus.SHIELD;m.value=10;}
+            m.kind=Kind.BONUS;m.radius=18;int r=rnd.nextInt(100);
+            if(r<12){m.bonus=Bonus.H;m.value=1;}
+            else if(r<38){m.bonus=Bonus.MONEY;m.value=25+Math.min(75,waves.wave*4);}
+            else if(r<58){m.bonus=Bonus.HEALTH;m.value=10;}
+            else if(r<80){m.bonus=Bonus.SHIELD;m.value=10;}
             else{m.bonus=Bonus.BOMB0;m.value=0;}
         }
 
-        int nextLockedPrime(){int ceiling=waves.primeUnlockCeiling();for(int x:MeteorMathV2.PRIMES)if(x<=ceiling&&!inv.divisors.contains(x))return x;return -1;}
+        void spawnAmmoDrop(int weapon,float x){
+            if(weapon<=2||!inv.hasWeapon(weapon))return;
+            Meteor m=new Meteor();m.kind=Kind.BONUS;m.bonus=Bonus.AMMO;m.ammoValue=weapon;m.value=2;
+            m.radius=18;m.x=x;m.y=-24;m.speed=30f;
+            meteors.add(m);
+        }
+
+        void triggerPhaseAmmoDrop(){
+            if(ammoDropTriggered||phaseActiveSeconds<5f)return;
+            ammoDropTriggered=true;
+            ArrayList<Integer> owned=new ArrayList<Integer>();
+            for(Integer weapon:inv.weapons)if(weapon>2)owned.add(weapon);
+            if(owned.isEmpty())return;
+            int current=waves.currentWeaponValue();
+            boolean currentOwned=inv.hasWeapon(current)&&current>2;
+            ArrayList<Integer> previous=new ArrayList<Integer>();
+            for(Integer weapon:owned)if(!currentOwned||weapon!=current)previous.add(weapon);
+            if(currentOwned)spawnAmmoDrop(current,520f);
+            if(!previous.isEmpty()){
+                int previousWeapon=previous.get(rnd.nextInt(previous.size()));
+                spawnAmmoDrop(previousWeapon,currentOwned?280f:400f);
+            }
+        }
         void spawnCommercial(){
             commercial=new Plane();
             commercial.x=-70;commercial.baseY=78+rnd.nextInt(145);commercial.y=commercial.baseY;
             commercial.speed=72+waves.wave*2.2f;commercial.military=false;commercial.bobPhase=rnd.nextFloat()*6.28f;
             audio.play("aviao_comercial_passagem.wav");
+        }
+
+        void destroyCommercialPlane(){
+            if(commercial==null||!commercial.active)return;
+            Plane pl=commercial;
+            RectF bounds=pl.bounds();
+            Bitmap b=planeCommercial;
+            if(b!=null){
+                android.util.DisplayMetrics dm=getResources().getDisplayMetrics();
+                float xdpi=(dm.xdpi>100f&&dm.xdpi<1000f)?dm.xdpi:385f;
+                float ydpi=(dm.ydpi>100f&&dm.ydpi<1000f)?dm.ydpi:385f;
+                float tileW=Math.max(2f,Math.min(18f,(xdpi/25.4f)/Math.max(.01f,scaleX)));
+                float tileH=Math.max(2f,Math.min(18f,(ydpi/25.4f)/Math.max(.01f,scaleY)));
+                int cols=Math.max(1,(int)Math.ceil(bounds.width()/tileW));
+                int rows=Math.max(1,(int)Math.ceil(bounds.height()/tileH));
+                for(int row=0;row<rows;row++){
+                    for(int col=0;col<cols;col++){
+                        int sx0=(int)Math.floor(col*b.getWidth()/(float)cols);
+                        int sx1=Math.max(sx0+1,(int)Math.ceil((col+1)*b.getWidth()/(float)cols));
+                        int sy0=(int)Math.floor(row*b.getHeight()/(float)rows);
+                        int sy1=Math.max(sy0+1,(int)Math.ceil((row+1)*b.getHeight()/(float)rows));
+                        sx1=Math.min(b.getWidth(),sx1);sy1=Math.min(b.getHeight(),sy1);
+                        int sample=b.getPixel(Math.min(b.getWidth()-1,(sx0+sx1)/2),Math.min(b.getHeight()-1,(sy0+sy1)/2));
+                        if(Color.alpha(sample)<24)continue;
+                        float l=bounds.left+col*bounds.width()/cols;
+                        float t=bounds.top+row*bounds.height()/rows;
+                        float w=Math.max(1f,bounds.width()/cols);
+                        float h=Math.max(1f,bounds.height()/rows);
+                        float vx=-95+rnd.nextFloat()*190f;
+                        float vy=-105-rnd.nextFloat()*120f;
+                        boolean dangerous=rnd.nextFloat()<.46f;
+                        planeDebris.add(new PlaneDebris(l+w*.5f,t+h*.5f,vx,vy,w,h,
+                                rnd.nextFloat()*360f,-260+rnd.nextFloat()*520f,
+                                new Rect(sx0,sy0,sx1,sy1),dangerous));
+                    }
+                }
+            }
+            burst(pl.x,pl.y,Color.LTGRAY,24);
+            audio.play("aviao_comercial_atingido.wav");
+            pl.active=false;
+            commercial=null;
+        }
+
+        void updatePlaneDebris(float dt){
+            if(planeDebris.isEmpty())return;
+            float damage=0f,damageX=400f;
+            Iterator<PlaneDebris> it=planeDebris.iterator();
+            while(it.hasNext()){
+                PlaneDebris d=it.next();
+                d.x+=d.vx*dt;d.y+=d.vy*dt;d.vy+=125f*dt;d.angle+=d.spin*dt;
+                if(d.dangerous&&d.y+d.h*.5f>=cityCollisionYAt(d.x)&&d.y<CITY_BOTTOM+8f){
+                    float hitY=cityCollisionYAt(d.x);
+                    applyCityImpact(d.x,hitY,.6f,Math.max(d.w,d.h),2);
+                    damage+=.42f;damageX=d.x;d.dangerous=false;
+                    burst(d.x,hitY,Color.LTGRAY,3);
+                    it.remove();continue;
+                }
+                if(d.y>430f||d.x<-80f||d.x>880f)it.remove();
+            }
+            if(damage>0)damageCity(Math.min(6f,damage),damageX,false);
         }
 
         void emitPlaneTrail(Plane pl,float dt){
@@ -1317,10 +1503,7 @@ public class GameV2Activity extends Activity {
                 m.y+=m.speed*dt;
 
                 if(commercial!=null&&commercial.active&&RectF.intersects(m.bounds(),commercial.bounds())){
-                    commercial.active=false;commercial=null;
-                    audio.play("aviao_comercial_atingido.wav");
-                    damageCity(6,m.x,false);
-                    burst(m.x,m.y,Color.LTGRAY,18);
+                    destroyCommercialPlane();
                     m.dead=true;continue;
                 }
 
@@ -1328,6 +1511,10 @@ public class GameV2Activity extends Activity {
                 if(m.y+m.radius>=collisionY){
                     if(m.kind==Kind.BONUS){
                         damageCity(3,m.x,false);
+                    }else if(isQuizKind(m.kind)){
+                        float impact=Math.min(18,7+Math.min(MeteorMathV2.MAX_METEOR_VALUE,m.originalValue)/22f);
+                        applyCityImpact(m.x,collisionY,impact,m.radius,Math.min(MeteorMathV2.MAX_METEOR_VALUE,m.originalValue));
+                        damageCity(cityHealth*.5f,m.x,false);
                     }else{
                         float impact=Math.min(18,4+m.value/18f);
                         applyCityImpact(m.x,collisionY,impact,m.radius,m.originalValue);
@@ -1362,28 +1549,29 @@ public class GameV2Activity extends Activity {
             pendingBonusTarget=m;pendingBonusTimer=shotDuration;
         }
 
-        void applyDivisorShot(Meteor m,int divisor){
-            if(MeteorMathV2.canDivide(m.value,divisor)){
-                m.value/=divisor;
-                audio.play("divisao_correta.wav");
-                burst(m.x,m.y,Color.rgb(100,255,120),10);
-                m.radius=Math.max(11,m.radius*.88f);
-                if(m.value<=1)explode(m,true,false);
-            }else{
-                audio.play("divisao_errada.wav");
-                burst(m.x,m.y,Color.rgb(255,80,60),7);
-                score=Math.max(0,score-2);
-            }
-        }
-
-        void applySubtractorShot(Meteor m,int amount){
+        void applyWeaponShot(Meteor m,int amount){
+            int before=Math.max(0,m.value);
+            int removed=Math.min(before,Math.max(0,amount));
+            inv.money+=removed;
             audio.play("subtrator_uso.wav");
             burst(m.x,m.y,Color.CYAN,10);
-            if(amount>=m.value){m.value=0;explode(m,true,false);}
-            else m.value-=amount;
+            m.value-=Math.max(0,amount);
+            m.radius=Math.max(11,m.radius*.92f);
+            if(m.value<=0){m.value=0;explode(m,true,false);}
+        }
+
+        void applyHShot(Meteor m){
+            inv.money+=Math.max(0,m.value);
+            burst(m.x,m.y,Color.WHITE,18);
+            m.value=0;
+            explode(m,true,false);
         }
 
         void resolveShotAt(float x,float y,int projectileValue){
+            if(commercial!=null&&commercial.active&&commercial.bounds().contains(x,y)){
+                destroyCommercialPlane();
+                return;
+            }
             Meteor hit=null;
             for(int i=meteors.size()-1;i>=0;i--){
                 Meteor m=meteors.get(i);
@@ -1391,20 +1579,19 @@ public class GameV2Activity extends Activity {
             }
             if(hit==null)return;
             if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
-            if(hit.kind==Kind.ADD||hit.kind==Kind.MULT){openQuiz(hit);return;}
-            if(selectedMode==1){applySubtractorShot(hit,projectileValue);return;}
-            applyDivisorShot(hit,projectileValue);
+            if(isQuizKind(hit.kind)){openQuiz(hit);return;}
+            if(selectedMode==1){applyHShot(hit);return;}
+            applyWeaponShot(hit,projectileValue);
         }
 
         void releaseAimedShot(){
             updateAimCharge(0f);
-            int value=selectedMode==1?Math.max(1,inv.subtractorValue):currentChargedDivisor();
-            if(selectedMode==1){
-                if(value<1||value>inv.subtractorCharge||!inv.spendSubtractor(value)){
-                    audio.play("divisao_errada.wav");
-                    aiming=false;aimTargetTimer=.20f;aimCharge=0f;aimCharged=false;chargeParticleTimer=0f;
-                    return;
-                }
+            int value=currentChargedDivisor();
+            boolean canFire=selectedMode==1?inv.spendH():inv.spendAmmo(inv.selectedWeapon);
+            if(!canFire){
+                audio.play("divisao_errada.wav");
+                aiming=false;aimTargetTimer=.20f;aimCharge=0f;aimCharged=false;chargeParticleTimer=0f;
+                return;
             }
             int projectileIndex=aimTargetIndex;
             chargedProjectileValue=value;
@@ -1418,14 +1605,21 @@ public class GameV2Activity extends Activity {
         }
 
         void collectBonus(Meteor m){
-            switch(m.bonus){case AMMO:if(inv.unlockDivisor(m.ammoValue))audio.play("municao_desbloqueada.wav");else audio.play("bonus_municao.wav");break;case SUBTRACTOR:inv.addSubtractor(m.value);audio.play("bonus_subtrator.wav");break;case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;}
+            switch(m.bonus){
+                case AMMO:inv.addAmmo(m.ammoValue,2);audio.play("bonus_municao.wav");break;
+                case H:inv.addH(1);audio.play("bonus_municao.wav");break;
+                case MONEY:inv.money+=m.value;audio.play("bonus_dinheiro.wav");break;
+                case HEALTH:cityHealth=Math.min(100,cityHealth+m.value);audio.play("bonus_saude.wav");break;
+                case SHIELD:inv.shieldSeconds=Math.max(inv.shieldSeconds,10);shieldVisualAge=0;shieldWasActive=false;audio.play("bonus_escudo.wav");break;
+                case BOMB0:inv.bombZero++;audio.play("bonus_municao.wav");break;
+            }
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
 
         void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
-        void answerQuiz(int option){if(!quizOpen||quizMeteor==null)return;if(option==quizMeteor.quiz.answer){audio.play("quiz_acerto.wav");audio.play("alvo_trava.wav");quizOpen=false;startMilitaryStrike(quizMeteor);}else{quizAttempts++;audio.play("quiz_erro.wav");if(quizAttempts>=2){quizMeteor.kind=Kind.NORMAL;quizMeteor.value=quizMeteor.quiz.answer;quizMeteor.originalValue=quizMeteor.value;quizMeteor.quiz=null;quizOpen=false;quizMeteor=null;}}}
+        void answerQuiz(int option){if(!quizOpen||quizMeteor==null)return;if(option==quizMeteor.quiz.answer){audio.play("quiz_acerto.wav");audio.play("alvo_trava.wav");inv.money+=Math.min(MeteorMathV2.MAX_METEOR_VALUE,Math.max(0,quizMeteor.value));quizOpen=false;startMilitaryStrike(quizMeteor);}else{quizAttempts++;audio.play("quiz_erro.wav");if(quizAttempts>=2){quizMeteor.kind=Kind.NORMAL;quizMeteor.value=Math.min(MeteorMathV2.MAX_METEOR_VALUE,Math.max(2,quizMeteor.quiz.answer));quizMeteor.originalValue=quizMeteor.value;quizMeteor.quiz=null;quizOpen=false;quizMeteor=null;}}}
         void startMilitaryStrike(Meteor target){
             military=new Plane();military.military=true;military.x=-75;
             military.baseY=Math.max(52,target.y-72);military.y=military.baseY;
@@ -1465,7 +1659,7 @@ public class GameV2Activity extends Activity {
             if(rows.isEmpty())drawText(c,"NENHUMA PONTUACAO SALVA",400,205,17,Color.WHITE,true);else{int max=Math.min(7,rows.size());for(int i=0;i<max;i++){String[] v=rows.get(i);float y=158+i*29;drawText(c,v[0],195,y,12,Color.WHITE,true);drawText(c,v[1],410,y,14,Color.YELLOW,true);drawText(c,v[2],570,y,14,Color.WHITE,true);}}drawMenuButton(c,new RectF(310,355,490,395),"VOLTAR",false);
         }
 
-        String difficultyName(){String[] n={"MUITO FACIL","FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
+        String difficultyName(){String[] n={"FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
         void drawOptions(Canvas c){
             drawDarkCard(c,170,24,630,452);drawText(c,"OPCOES",400,57,28,Color.CYAN,true);
             drawMenuButton(c,new RectF(235,74,565,111),"DIFICULDADE: "+difficultyName(),false);
@@ -1512,22 +1706,23 @@ public class GameV2Activity extends Activity {
 
         void drawGame(Canvas c){
             drawSky(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawProtectedSiteDamage(c);drawShieldDome(c);
-            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
+            for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}drawPlaneDebris(c);for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+waves.wave,400,112,22,Color.YELLOW,true);
                 drawText(c,"PROTEJA "+phaseCityName()+"!",400,154,31,Color.WHITE,true);
                 drawText(c,phaseObjective(),400,194,15,Color.CYAN,true);
-                if(lastDivisorAcquired>0)drawText(c,"DIVISOR "+lastDivisorAcquired+" ADQUIRIDO",400,230,17,Color.YELLOW,true);
+                if(lastWeaponAcquired>0)drawText(c,"SUBTRATOR "+lastWeaponAcquired+" COMPRADO",400,230,17,Color.YELLOW,true);
                 drawText(c,"INICIO EM "+Math.max(1,(int)Math.ceil(preWaveTimer)),400,274,18,Color.WHITE,true);
             }
             if(waveClear){
                 p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);
                 drawText(c,"FASE "+completedWave+" CONCLUIDA",400,158,34,Color.CYAN,true);
-                drawText(c,"CIDADE REPARADA - 100%",400,198,17,Color.WHITE,true);
+                drawText(c,"SAUDE DA CIDADE: "+Math.round(cityHealth)+"%",400,198,17,Color.WHITE,true);
                 if(completedWave>1){
-                    if(lastProtectedBonus>0)drawText(c,"OBJETIVO PRESERVADO  +"+lastProtectedBonus+" PONTOS",400,230,15,Color.YELLOW,true);
-                    else drawText(c,"OBJETIVO ESTRATEGICO PERDIDO",400,230,15,Color.RED,true);
+                    if(lastProtectedMoneyDelta>0)drawText(c,"MONUMENTO: +R$"+lastProtectedMoneyDelta,400,230,15,Color.YELLOW,true);
+                    else if(lastProtectedMoneyDelta<0)drawText(c,"MONUMENTO: -R$"+Math.abs(lastProtectedMoneyDelta),400,230,15,Color.RED,true);
+                    else drawText(c,"MONUMENTO SEM BONUS",400,230,15,Color.LTGRAY,true);
                 }
                 drawText(c,"BONUS DE TEMPO  +"+phaseTimeBonus,400,264,16,Color.YELLOW,true);
                 drawText(c,"TEMPO DE COMBATE  "+Math.round(phaseActiveSeconds)+"s",400,292,13,Color.WHITE,true);
@@ -1560,33 +1755,34 @@ public class GameV2Activity extends Activity {
             drawText(c,"DOCUMENTO DE CAMPO  "+(manualPage+1)+"/2",400,84,11,Color.LTGRAY,true);
 
             if(manualPage==0){
-                drawText(c,"OBJETIVO PRIMARIO",92,112,14,Color.YELLOW,false);
-                drawText(c,"Proteja a cidade. Da Fase 2 em diante, o ponto estrategico tem vida propria.",92,134,12,Color.WHITE,false);
-                drawText(c,"Se o ponto sobreviver, a fase concede bonus de pontuacao.",92,154,12,Color.LTGRAY,false);
-                drawText(c,"Meteoros que atingem a cidade NAO contam como abatidos.",92,170,11,Color.LTGRAY,false);
-                drawText(c,"CONTROLE DE TIRO",92,190,14,Color.YELLOW,false);
-                drawText(c,"Toque: marca o alvo e dispara o projetil selecionado.",92,210,12,Color.WHITE,false);
-                drawText(c,"Segure: apos a carga, a municao salta de n diretamente para n x n.",92,232,12,Color.WHITE,false);
-                drawText(c,"Arraste sem soltar: o canhao acompanha a mira.",92,254,12,Color.WHITE,false);
-                drawText(c,"Solte: o disparo ocorre na posicao atual da mira.",92,276,12,Color.WHITE,false);
-                drawText(c,"ARSENAL",92,302,14,Color.YELLOW,false);
-                drawText(c,"7 municoes: 2, 3, 5, 7, 11, 13 e 17.  8o: SUBTRATOR.",92,324,11,Color.WHITE,false);
-                drawText(c,"BOMBA 0 paralisa, marca e elimina todos os meteoros da tela.",92,346,11,Color.WHITE,false);
-                drawText(c,"Quanto mais rapido concluir a fase, maior o bonus de tempo.",92,366,11,Color.YELLOW,false);
-                drawMenuButton(c,new RectF(475,382,690,421),"REGRAS DE DIVISAO >",false);
+                drawText(c,"OBJETIVO E ECONOMIA",92,112,14,Color.YELLOW,false);
+                drawText(c,"Proteja a cidade. Da Fase 2 em diante, preserve tambem o monumento.",92,134,11,Color.WHITE,false);
+                drawText(c,"Monumento intacto rende R$; danificado rende proporcionalmente ao que restou.",92,154,11,Color.LTGRAY,false);
+                drawText(c,"Se for destruido, ha perda de R$ maior nas dificuldades mais altas.",92,172,11,Color.LTGRAY,false);
+                drawText(c,"REPARAR custa 10% do dinheiro atual e recupera 10 pontos de saude.",92,190,11,Color.YELLOW,false);
+                drawText(c,"CONTROLE DE TIRO",92,214,14,Color.YELLOW,false);
+                drawText(c,"Cada acerto subtrai do meteoro o valor da arma selecionada.",92,234,11,Color.WHITE,false);
+                drawText(c,"Segurar o toque carrega apenas a mira/efeito; nao aumenta o valor da arma.",92,252,11,Color.WHITE,false);
+                drawText(c,"Armas: 2, 4, 8, 16, 32, 64 e 128. A arma 2 tem municao infinita.",92,274,11,Color.WHITE,false);
+                drawText(c,"As demais usam estoque. Itens de municao abatidos acrescentam +2.",92,292,11,Color.LTGRAY,false);
+                drawText(c,"H usa o ultimo projetil e elimina completamente um meteoro normal.",92,310,11,Color.WHITE,false);
+                drawText(c,"Cada valor efetivamente subtraido vira R$ para financiar armas ou reparos.",92,328,11,Color.YELLOW,false);
+                drawText(c,"BOMBA 0 continua eliminando todos os meteoros presentes na tela.",92,346,11,Color.WHITE,false);
+                drawText(c,"Destrocos de aviao comercial podem cair sobre a cidade e causar dano.",92,364,11,Color.LTGRAY,false);
+                drawMenuButton(c,new RectF(475,382,690,421),"QUIZ E DIFICULDADE >",false);
             }else{
-                drawText(c,"PROTOCOLO DE DIVISIBILIDADE",92,112,14,Color.YELLOW,false);
-                drawText(c,"2  // ultimo algarismo par: 0, 2, 4, 6 ou 8.",92,138,12,Color.WHITE,false);
-                drawText(c,"3  // soma dos algarismos divisivel por 3.",92,162,12,Color.WHITE,false);
-                drawText(c,"5  // termina em 0 ou 5.",92,186,12,Color.WHITE,false);
-                drawText(c,"7  // retire o ultimo algarismo e subtraia o dobro dele;",92,210,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 7.",92,230,12,Color.LTGRAY,false);
-                drawText(c,"11 // diferenca entre as somas alternadas dos algarismos",92,254,12,Color.WHITE,false);
-                drawText(c,"     deve ser 0 ou multiplo de 11.",92,274,12,Color.LTGRAY,false);
-                drawText(c,"13 // retire o ultimo algarismo e some 4 vezes esse valor;",92,298,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 13.",92,318,12,Color.LTGRAY,false);
-                drawText(c,"17 // retire o ultimo algarismo e subtraia 5 vezes esse valor;",92,342,12,Color.WHITE,false);
-                drawText(c,"     repita ate reconhecer um multiplo de 17.",92,362,12,Color.LTGRAY,false);
+                drawText(c,"QUIZ MATEMATICO",92,112,14,Color.YELLOW,false);
+                drawText(c,"Desde a Fase 1 aparecem +, -, x e /; as operacoes alternam sem repeticao imediata.",92,134,11,Color.WHITE,false);
+                drawText(c,"Divisoes sao sempre exatas e subtracoes nunca geram resultado negativo.",92,154,11,Color.LTGRAY,false);
+                drawText(c,"Se um meteoro de quiz atingir a cidade, ela perde metade da saude atual.",92,174,11,Color.YELLOW,false);
+                drawText(c,"FACIL: x e / em unidades; + e - ate dezenas.",92,202,11,Color.WHITE,false);
+                drawText(c,"MEDIO: multiplicando/dividendo em 2 algarismos; + e - em centenas.",92,224,11,Color.WHITE,false);
+                drawText(c,"DIFICIL: multiplicando/dividendo em centenas; + e - em milhares.",92,246,11,Color.WHITE,false);
+                drawText(c,"MUITO DIFICIL: multiplicando/dividendo em milhares; + e - em 10 milhares.",92,268,11,Color.WHITE,false);
+                drawText(c,"INSANO: numeros ainda maiores, mantendo multiplicador/divisor em unidade.",92,290,11,Color.WHITE,false);
+                drawText(c,"Em todos os niveis, multiplicador e divisor ficam entre 2 e 9.",92,312,11,Color.LTGRAY,false);
+                drawText(c,"A variedade interna aumenta gradualmente conforme as fases avancam.",92,334,11,Color.LTGRAY,false);
+                drawText(c,"Responder corretamente chama o ataque aereo e concede recompensa em R$.",92,356,11,Color.YELLOW,false);
                 drawMenuButton(c,new RectF(110,382,325,421),"< BRIEFING",false);
             }
             drawMenuButton(c,new RectF(315,423,485,446),"VOLTAR",false);
@@ -1594,14 +1790,26 @@ public class GameV2Activity extends Activity {
 
         void drawIntermission(Canvas c){
             p.setColor(Color.argb(205,0,0,0));c.drawRect(0,0,800,390,p);
-            drawDarkCard(c,160,45,640,365);
-            drawText(c,"INTERVALO ENTRE FASES",400,82,25,Color.CYAN,true);
-            drawText(c,"DINHEIRO: $"+inv.money,400,112,16,Color.YELLOW,true);
-            shopSubRect.set(215,140,585,190);
-            shopBombRect.set(215,210,585,260);
-            shopNextRect.set(285,300,515,346);
-            drawMenuButton(c,shopSubRect,"SUBTRATOR +10   $"+SHOP_SUBTRACTOR_COST,false);
-            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   $"+SHOP_BOMB_COST,false);
+            drawDarkCard(c,135,18,665,382);
+            drawText(c,"INTERVALO ENTRE FASES",400,48,23,Color.CYAN,true);
+            drawText(c,"DINHEIRO: R$"+inv.money+"   CIDADE: "+Math.round(cityHealth)+"%",400,70,14,Color.YELLOW,true);
+            int weapon=shopWeaponValue();
+            int weaponCost=weapon*WEAPON_PRICE_MULTIPLIER;
+            int ammoCost=inv.selectedWeapon>2?inv.selectedWeapon*2:0;
+            shopWeaponRect.set(185,82,615,122);
+            shopAmmoRect.set(185,130,615,170);
+            shopHRect.set(185,178,615,218);
+            shopBombRect.set(185,226,615,266);
+            shopNextRect.set(285,310,515,350);
+            String weaponLabel=weapon<=2?"ARSENAL BASICO ATIVO"
+                    :(inv.hasWeapon(weapon)?"SUBTRATOR "+weapon+" JA ADQUIRIDO":"COMPRAR SUBTRATOR "+weapon+"   R$"+weaponCost);
+            String ammoLabel=inv.selectedWeapon<=2?"MUNICAO: SELECIONE 4-128 NO HUD"
+                    :"MUNICAO "+inv.selectedWeapon+" +2   R$"+ammoCost;
+            drawMenuButton(c,shopWeaponRect,weaponLabel,false);
+            drawMenuButton(c,shopAmmoRect,ammoLabel,false);
+            drawMenuButton(c,shopHRect,"ARMA H +1   R$"+SHOP_H_COST,false);
+            drawMenuButton(c,shopBombRect,"BOMBA 0 +1   R$"+SHOP_BOMB_COST,false);
+            drawText(c,"O botao REPARAR no HUD continua ativo durante o intervalo.",400,291,10,Color.LTGRAY,true);
             drawMenuButton(c,shopNextRect,"PROXIMA FASE",true);
         }
 
@@ -1628,11 +1836,18 @@ public class GameV2Activity extends Activity {
 
         void drawProtectedSiteDamage(Canvas c){
             if(!protectedSiteActive()||protectedCells==null||cityDestroyed==null)return;
+            long blinkPhase=SystemClock.uptimeMillis()%5000L;
+            boolean monumentBlink=blinkPhase<520L;
+            int blinkAlpha=monumentBlink?(int)(70+90*Math.abs(Math.sin(blinkPhase/55.0))):0;
             int flicker=(int)(SystemClock.uptimeMillis()/85)%3;
             for(int row=0;row<damageRows;row++){
                 for(int col=0;col<damageCols;col++){
-                    if(!protectedCells[row][col]||!cityDestroyed[row][col])continue;
+                    if(!protectedCells[row][col])continue;
                     RectF r=cellWorldRect(row,col);
+                    if(monumentBlink&&!cityDestroyed[row][col]){
+                        p.setColor(Color.argb(blinkAlpha,90,245,255));c.drawRect(r,p);
+                    }
+                    if(!cityDestroyed[row][col])continue;
                     p.setColor(Color.argb(205,28,25,22));c.drawRect(r,p);
                     p.setColor(Color.rgb(92,88,82));
                     c.drawRect(r.left,r.bottom-Math.max(1f,r.height()*.30f),r.right,r.bottom,p);
@@ -1738,7 +1953,7 @@ public class GameV2Activity extends Activity {
             if(aimTargetSheet!=null)drawTile(c,aimTargetSheet,8,1,aimTargetIndex,new RectF(aimX-r,aimY-r,aimX+r,aimY+r),pixel);
             else{p.setColor(Color.RED);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawCircle(aimX,aimY,r,p);p.setStyle(Paint.Style.FILL);}
             if(aiming){
-                String v=selectedMode==1?"SUB "+Math.max(1,inv.subtractorValue):String.valueOf(currentChargedDivisor());
+                String v=selectedMode==1?"H":String.valueOf(currentChargedDivisor());
                 drawOutlinedText(c,v,aimX,Math.max(18,aimY-r-7),13,aimCharge>0?Color.CYAN:Color.WHITE);
             }
         }
@@ -1750,6 +1965,8 @@ public class GameV2Activity extends Activity {
                 Paint use=pixel;
                 if(m.kind==Kind.MULT){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(80,205,105),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
                 else if(m.kind==Kind.ADD){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,220,80),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                else if(m.kind==Kind.SUB){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,105,120),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                else if(m.kind==Kind.DIV){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(90,205,255),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
                 int frame=((int)(SystemClock.uptimeMillis()/130)+Math.abs(m.originalValue))%4;
                 RectF dest=new RectF(m.x-m.radius,m.y-m.radius,m.x+m.radius,m.y+m.radius);
                 if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,frame,dest,use);
@@ -1757,7 +1974,7 @@ public class GameV2Activity extends Activity {
                 tintPaint.setColorFilter(null);
                 String text;
                 if(bombSequence)text="0x"+m.value;
-                else text=(m.kind==Kind.ADD||m.kind==Kind.MULT)?m.quiz.expression():String.valueOf(m.value);
+                else text=isQuizKind(m.kind)&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
                 drawText(c,text,m.x,m.y+5,15,Color.WHITE,true);
             }
             if(m.targetBlink&&((int)(m.blinkTime*10)%2==0)){
@@ -1766,8 +1983,30 @@ public class GameV2Activity extends Activity {
             }
         }
 
-        void drawBonusMeteor(Canvas c,Meteor m){Bitmap icon=null;if(m.bonus==Bonus.MONEY)icon=moneyImg;else if(m.bonus==Bonus.SUBTRACTOR)icon=subImg;else if(m.bonus==Bonus.BOMB0)icon=bombImg;if(icon!=null)c.drawBitmap(icon,null,new RectF(m.x-17,m.y-17,m.x+17,m.y+17),pixel);else{int tile=m.bonus==Bonus.HEALTH?4:m.bonus==Bonus.SHIELD?5:1;if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,tile,new RectF(m.x-17,m.y-17,m.x+17,m.y+17),pixel);else{p.setColor(Color.rgb(60,135,190));c.drawCircle(m.x,m.y,17,p);}}drawText(c,bonusText(m),m.x,m.y+5,13,Color.WHITE,true);}
-        String bonusText(Meteor m){switch(m.bonus){case AMMO:return "+"+m.ammoValue;case SUBTRACTOR:return "SUB "+m.value;case MONEY:return "$"+m.value;case HEALTH:return "+"+m.value;case SHIELD:return "ESC";default:return "x0";}}
+        void drawBonusMeteor(Canvas c,Meteor m){
+            RectF dst=new RectF(m.x-17,m.y-17,m.x+17,m.y+17);
+            if(m.bonus==Bonus.AMMO&&projectileSheet!=null){
+                drawTile(c,projectileSheet,8,1,projectileIndexForDivisor(m.ammoValue),dst,pixel);
+            }else if(m.bonus==Bonus.H&&projectileSheet!=null){
+                drawTile(c,projectileSheet,8,1,7,dst,pixel);
+            }else{
+                Bitmap icon=null;if(m.bonus==Bonus.MONEY)icon=moneyImg;else if(m.bonus==Bonus.BOMB0)icon=bombImg;
+                if(icon!=null)c.drawBitmap(icon,null,dst,pixel);
+                else{int tile=m.bonus==Bonus.HEALTH?4:m.bonus==Bonus.SHIELD?5:1;if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,tile,dst,pixel);else{p.setColor(Color.rgb(60,135,190));c.drawCircle(m.x,m.y,17,p);}}
+            }
+            drawText(c,bonusText(m),m.x,m.y+5,12,Color.WHITE,true);
+        }
+        String bonusText(Meteor m){switch(m.bonus){case AMMO:return "+2 /"+m.ammoValue;case H:return "H +1";case MONEY:return "R$"+m.value;case HEALTH:return "+"+m.value;case SHIELD:return "ESC";default:return "x0";}}
+        void drawPlaneDebris(Canvas c){
+            if(planeDebris.isEmpty()||planeCommercial==null)return;
+            for(PlaneDebris d:planeDebris){
+                c.save();c.rotate(d.angle,d.x,d.y);
+                RectF dst=new RectF(d.x-d.w*.5f,d.y-d.h*.5f,d.x+d.w*.5f,d.y+d.h*.5f);
+                c.drawBitmap(planeCommercial,d.src,dst,pixel);
+                c.restore();
+            }
+        }
+
         void drawPlane(Canvas c,Plane pl){
             Bitmap b=pl.military?planeMilitary:planeCommercial;
             RectF r=pl.bounds();
@@ -1798,45 +2037,43 @@ public class GameV2Activity extends Activity {
         }
 
         void drawHud(Canvas c){
-            // HUD redesenhado por blocos independentes para nenhum controle se sobrepor.
             p.setColor(Color.rgb(3,18,34));c.drawRect(0,390,800,480,p);
             p.setColor(Color.rgb(28,112,158));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(3,393,797,477,p);p.setStyle(Paint.Style.FILL);
 
-            RectF divPanel=new RectF(8,397,414,472);
-            RectF subPanel=new RectF(420,397,565,472);
+            RectF weaponPanel=new RectF(8,397,414,472);
+            RectF hPanel=new RectF(420,397,565,472);
             RectF bombPanel=new RectF(571,397,648,472);
             RectF repairPanel=new RectF(654,397,792,472);
-            RectF[] panels={divPanel,subPanel,bombPanel,repairPanel};
+            RectF[] panels={weaponPanel,hPanel,bombPanel,repairPanel};
             for(RectF panel:panels){p.setColor(Color.rgb(7,32,50));c.drawRect(panel,p);p.setColor(Color.rgb(25,92,127));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(1.5f);c.drawRect(panel,p);p.setStyle(Paint.Style.FILL);}
 
-            drawText(c,"DIVISORES",16,412,10,Color.LTGRAY,false);
+            drawText(c,"SUBTRATORES",16,410,9,Color.LTGRAY,false);
             int x=14;
-            for(int i=0;i<MeteorMathV2.PRIMES.length;i++){
-                int prime=MeteorMathV2.PRIMES[i];
-                RectF r=new RectF(x,421,x+30,459);divisorRects[i]=r;
-                boolean have=inv.divisors.contains(prime);
-                if(molduraSheet!=null){p.setAlpha(have?255:80);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}
+            for(int i=0;i<MeteorMathV2.WEAPONS.length;i++){
+                int weapon=MeteorMathV2.WEAPONS[i];
+                RectF r=new RectF(x,417,x+50,463);divisorRects[i]=r;
+                boolean have=inv.hasWeapon(weapon);
+                if(molduraSheet!=null){p.setAlpha(have?255:70);drawTile(c,molduraSheet,4,1,1,r,pixel);p.setAlpha(255);}
                 else{p.setColor(have?Color.rgb(16,45,62):Color.rgb(28,31,35));c.drawRect(r,p);}
-                if(have&&inv.selectedDivisor==prime&&selectedMode==0){
+                if(have&&inv.selectedWeapon==weapon&&selectedMode==0){
                     if(hudChargeFlashTimer>0){
                         int a=(int)(70+140*Math.abs(Math.sin(SystemClock.uptimeMillis()/55.0)));
                         p.setColor(Color.argb(a,120,245,255));c.drawRect(r,p);
                     }
                     p.setColor(Color.CYAN);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2);c.drawRect(r,p);p.setStyle(Paint.Style.FILL);
                 }
-                String ammoText=(have&&inv.selectedDivisor==prime&&selectedMode==0&&hudChargeFlashTimer>0)?String.valueOf(prime*prime):String.valueOf(prime);
-                drawOutlinedText(c,ammoText,r.centerX(),446,14,have?Color.WHITE:Color.rgb(105,110,115));
-                x+=36;
+                drawOutlinedText(c,String.valueOf(weapon),r.centerX(),438,12,have?Color.WHITE:Color.rgb(105,110,115));
+                String stock=weapon==2?"INF":"x"+inv.ammoFor(weapon);
+                drawText(c,stock,r.centerX(),457,8,have?Color.YELLOW:Color.rgb(80,85,90),true);
+                x+=56;
             }
 
-            if(subImg!=null)c.drawBitmap(subImg,null,new RectF(427,402,447,422),pixel);
-            drawText(c,"SUBTRATOR",493,410,10,Color.LTGRAY,true);
-            drawText(c,"CARGA "+inv.subtractorCharge,522,423,10,Color.WHITE,true);
-            subMinus.set(429,432,455,461);subUse.set(460,430,524,463);subPlus.set(530,432,556,461);
-            p.setColor(selectedMode==1?Color.rgb(38,92,120):Color.rgb(14,51,69));c.drawRoundRect(subUse,4,4,p);
-            drawText(c,"-",442,454,18,Color.WHITE,true);
-            drawText(c,String.valueOf(inv.subtractorValue),492,454,18,Color.CYAN,true);
-            drawText(c,"+",543,454,18,Color.WHITE,true);
+            hRect.set(428,414,557,464);
+            p.setColor(selectedMode==1?Color.rgb(38,92,120):Color.rgb(14,51,69));c.drawRoundRect(hRect,4,4,p);
+            if(projectileSheet!=null)drawTile(c,projectileSheet,8,1,7,new RectF(435,423,469,457),pixel);
+            drawText(c,"H",493,427,16,Color.CYAN,true);
+            drawText(c,"x"+inv.hAmmo,524,446,12,Color.YELLOW,true);
+            drawText(c,"DESTRUI  MAX "+MeteorMathV2.MAX_METEOR_VALUE,493,461,8,Color.LTGRAY,true);
 
             bombRect.set(576,404,643,466);
             p.setColor(Color.rgb(64,47,18));c.drawRoundRect(bombRect,4,4,p);
@@ -1846,9 +2083,11 @@ public class GameV2Activity extends Activity {
 
             repairRect.set(660,404,786,466);
             p.setColor(Color.rgb(23,72,44));c.drawRoundRect(repairRect,4,4,p);
-            if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(668,414,696,442),pixel);
-            drawText(c,"$"+inv.money,738,425,12,Color.YELLOW,true);
-            drawText(c,"REPARAR",738,448,11,Color.WHITE,true);
+            if(moneyImg!=null)c.drawBitmap(moneyImg,null,new RectF(664,411,690,437),pixel);
+            drawText(c,"R$"+inv.money,738,422,11,Color.YELLOW,true);
+            drawText(c,"REPARAR +10%",738,443,9,Color.WHITE,true);
+            int repairCost=inv.repairCost(cityHealth);
+            drawText(c,repairCost>0?"-R$"+repairCost:"SEM REPARO",738,459,8,Color.LTGRAY,true);
 
             drawText(c,"FASE "+waves.wave+"   "+waves.destroyedThisWave+"/"+waves.targetThisWave+"   MAX "+waves.maxMeteorValue(),12,22,14,Color.WHITE,false);
             drawText(c,"PONTOS "+score,12,43,14,Color.YELLOW,false);
@@ -1865,7 +2104,6 @@ public class GameV2Activity extends Activity {
                 c.drawRect(250,55,250+230*protectedSiteHealth/100f,68,p);
             }
 
-            // Pause no canto direito da faixa marrom, fora da área útil do céu e fora do HUD azul.
             if(running&&!preWave&&!gameOver){
                 pauseRect.set(746,351,792,386);
                 p.setColor(Color.argb(220,72,58,28));c.drawRoundRect(pauseRect,5,5,p);
@@ -1895,7 +2133,7 @@ public class GameV2Activity extends Activity {
                 if(canAimAt(x,y)){
                     aiming=true;aimDownTime=SystemClock.uptimeMillis();aimCharge=0f;chargeParticleTimer=0f;
                     aimTargetIndex=currentAimIndex();
-                    chargedProjectileValue=selectedMode==1?Math.max(1,inv.subtractorValue):inv.selectedDivisor;
+                    chargedProjectileValue=selectedMode==1?MeteorMathV2.MAX_METEOR_VALUE:inv.selectedWeapon;
                     pointCannonAt(x,y);
                     audio.play("alvo_trava.wav");
                 }
@@ -1942,20 +2180,28 @@ public class GameV2Activity extends Activity {
             }
             for(int i=0;i<divisorRects.length;i++){
                 RectF r=divisorRects[i];
-                if(r!=null&&r.contains(x,y)&&inv.divisors.contains(MeteorMathV2.PRIMES[i])){
-                    selectedMode=0;inv.selectedDivisor=MeteorMathV2.PRIMES[i];return true;
+                int weapon=MeteorMathV2.WEAPONS[i];
+                if(r!=null&&r.contains(x,y)&&inv.hasWeapon(weapon)){
+                    selectedMode=0;inv.selectedWeapon=weapon;return true;
                 }
             }
-            if(subMinus.contains(x,y)){selectedMode=1;if(inv.subtractorValue>1)inv.subtractorValue--;return true;}
-            if(subPlus.contains(x,y)){selectedMode=1;if(inv.subtractorValue<Math.max(1,inv.subtractorCharge)&&inv.subtractorValue<waves.maxMeteorValue())inv.subtractorValue++;return true;}
-            if(subUse.contains(x,y)){selectedMode=1;return true;}
+            if(hRect.contains(x,y)){selectedMode=1;return true;}
             if(bombRect.contains(x,y)){startBombSequence();return true;}
-            if(repairRect.contains(x,y)&&inv.repair(cityHealth)){cityHealth=Math.min(100,cityHealth+20);audio.play("reconstrucao_cidade.wav");return true;}
+            if(repairRect.contains(x,y)&&inv.repair(cityHealth)){cityHealth=Math.min(100,cityHealth+10);audio.play("reconstrucao_cidade.wav");return true;}
             return true;
         }
 
         void handleIntermissionTouch(float x,float y){
-            if(shopSubRect.contains(x,y)){buySubtractor();return;}
+            for(int i=0;i<divisorRects.length;i++){
+                RectF r=divisorRects[i];
+                int weapon=MeteorMathV2.WEAPONS[i];
+                if(r!=null&&r.contains(x,y)&&inv.hasWeapon(weapon)){selectedMode=0;inv.selectedWeapon=weapon;return;}
+            }
+            if(hRect.contains(x,y)){selectedMode=1;return;}
+            if(repairRect.contains(x,y)&&inv.repair(cityHealth)){cityHealth=Math.min(100,cityHealth+10);audio.play("reconstrucao_cidade.wav");return;}
+            if(shopWeaponRect.contains(x,y)){buyAvailableWeapon();return;}
+            if(shopAmmoRect.contains(x,y)){buySelectedAmmo();return;}
+            if(shopHRect.contains(x,y)){buyH();return;}
             if(shopBombRect.contains(x,y)){buyBomb();return;}
             if(shopNextRect.contains(x,y)){continueFromShop();return;}
         }
@@ -1990,7 +2236,7 @@ public class GameV2Activity extends Activity {
             }
             else if(menuPage==MENU_SCORE){if(x>=290&&x<=510&&y>=335&&y<=410)menuPage=MENU_MAIN;}
             else if(menuPage==MENU_OPTIONS){
-                if(x>=235&&x<=565&&y>=70&&y<=115){selectedDifficulty=(selectedDifficulty+1)%6;waves.difficulty=selectedDifficulty;}
+                if(x>=235&&x<=565&&y>=70&&y<=115){selectedDifficulty=(selectedDifficulty+1)%5;waves.difficulty=selectedDifficulty;}
                 else if(x>=235&&x<=565&&y>=115&&y<=160)laserEnabled=!laserEnabled;
                 else if(x>=235&&x<=565&&y>=160&&y<=205)vibrationEnabled=!vibrationEnabled;
                 else if(x>=235&&x<=565&&y>=205&&y<=251){
