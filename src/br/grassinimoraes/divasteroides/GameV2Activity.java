@@ -35,7 +35,9 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Iterator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.Locale;
 import java.util.Random;
 
@@ -145,8 +147,8 @@ public class GameV2Activity extends Activity {
         }
     }
 
-    enum Kind { NORMAL, ADD, MULT, BONUS }
-    enum Bonus { AMMO, SUBTRACTOR, MONEY, HEALTH, SHIELD, BOMB0 }
+    enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
+    enum Bonus { AMMO, HYPER, MONEY, HEALTH, SHIELD, BOMB0 }
 
     static final class Meteor {
         float x,y,radius,speed; int value, originalValue; Kind kind; Bonus bonus; int ammoValue;
@@ -160,10 +162,19 @@ public class GameV2Activity extends Activity {
         RectF bounds(){ return new RectF(x-(military?50:56),y-(military?17:19),x+(military?50:56),y+(military?17:19)); }
     }
 
+    static final class PlaneFragment {
+        final Rect src;
+        float x,y,vx,vy,w,h,angle,spin,life=5.5f;
+        boolean dead;
+        PlaneFragment(Rect src,float x,float y,float vx,float vy,float w,float h,float angle,float spin){
+            this.src=src;this.x=x;this.y=y;this.vx=vx;this.vy=vy;this.w=w;this.h=h;this.angle=angle;this.spin=spin;
+        }
+    }
+
     final class GameView extends View implements Runnable {
         static final int MENU_MAIN=0, MENU_SCORE=1, MENU_OPTIONS=2, MENU_MANUAL=3;
         static final float PRE_WAVE_DURATION=4.0f;
-        static final int SHOP_SUBTRACTOR_COST=50, SHOP_BOMB_COST=100;
+        static final int SHOP_H_COST=120, SHOP_BOMB_COST=100;
         static final int CITY_BITMAP_W=800, CITY_BITMAP_H=220;
         static final float CITY_TOP=170f, CITY_BOTTOM=390f;
         static final float TARGET_TILE_MM=1.0f;
@@ -176,13 +187,16 @@ public class GameV2Activity extends Activity {
         final List<Meteor> meteors=new ArrayList<Meteor>();
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
+        final List<PlaneFragment> planeFragments=new ArrayList<PlaneFragment>();
+        final Set<String> usedQuizExpressions=new HashSet<String>();
+        final List<Integer> phaseAmmoPlan=new ArrayList<Integer>();
         final AudioBank audio;
         final RectF[] divisorRects=new RectF[MeteorMathV2.PRIMES.length];
         final RectF subMinus=new RectF(),subPlus=new RectF(),subUse=new RectF(),bombRect=new RectF(),repairRect=new RectF(),pauseRect=new RectF();
         final RectF[] menuButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
         final RectF[] pauseButtons={new RectF(),new RectF(),new RectF(),new RectF(),new RectF()};
         final RectF victoryMenuRect=new RectF(),victoryExitRect=new RectF();
-        final RectF shopSubRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
+        final RectF shopWeaponRect=new RectF(),shopAmmoRect=new RectF(),shopHyperRect=new RectF(),shopBombRect=new RectF(),shopNextRect=new RectF();
 
         Bitmap menuBg,lane,moneyImg,subImg,planeCommercial,planeMilitary,bombImg,targetImg,aimTargetSheet,planeBombImg;
         Bitmap cityImg,baseCityImg,cityAtlas,cityRuntime,turretSheet,cannonSheet,meteorSheet,projectileSheet,smokeImg,molduraSheet;
@@ -203,6 +217,7 @@ public class GameV2Activity extends Activity {
         boolean vibrationEnabled=true;
         boolean laserEnabled=false;
         boolean dynamicWeatherEnabled=false;
+        boolean subtractionMechanic=true;
         int selectedDifficulty=0;
         boolean scoreClearedNotice=false;
         float scoreNoticeTimer=0f;
@@ -244,6 +259,8 @@ public class GameV2Activity extends Activity {
         int shotProjectileValue=2;
         int manualPage=0;
         float dirtParticleTimer=0f;
+        int phaseAmmoDropIndex=0;
+        float phaseAmmoDropTimer=0f;
 
         float protectedSiteHealth=100f,protectedFireTimer=0f;
         boolean protectedSiteDestroyed=false,protectedSiteBonusAwarded=false;
@@ -272,11 +289,14 @@ public class GameV2Activity extends Activity {
         void loadSettings(){
             SharedPreferences sp=getContext().getSharedPreferences("config",Context.MODE_PRIVATE);
             dynamicWeatherEnabled=sp.getBoolean("dynamicWeatherEnabled",false);
+            subtractionMechanic=sp.getBoolean("subtractionMechanic",true);
         }
 
         void saveSettings(){
             getContext().getSharedPreferences("config",Context.MODE_PRIVATE).edit()
-                    .putBoolean("dynamicWeatherEnabled",dynamicWeatherEnabled).apply();
+                    .putBoolean("dynamicWeatherEnabled",dynamicWeatherEnabled)
+                    .putBoolean("subtractionMechanic",subtractionMechanic)
+                    .apply();
         }
 
         void loadAssets(){
@@ -319,7 +339,8 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
+            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
+            cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
@@ -327,10 +348,10 @@ public class GameV2Activity extends Activity {
             intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
+            phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
             protectedSiteHealth=100f;protectedSiteDestroyed=false;protectedSiteBonusAwarded=false;protectedFireTimer=0;lastProtectedBonus=0;
             waves.wave=1;waves.destroyedThisWave=0;waves.targetThisWave=5;waves.difficulty=selectedDifficulty;
-            inv.divisors.clear();inv.divisors.add(2);inv.divisors.add(3);inv.selectedDivisor=2;
-            inv.subtractorCharge=0;inv.subtractorValue=1;inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
+            inv.resetArsenal();inv.money=0;inv.bombZero=0;inv.shieldSeconds=0;
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;
             preparePhase();
             playWaveMusic();
@@ -368,6 +389,79 @@ public class GameV2Activity extends Activity {
                 case 14:return 17;
                 default:return 0;
             }
+        }
+
+        int subtractorForPhase(int phase){
+            int idx=Math.max(0,Math.min(MeteorMathV2.SUBTRACTORS.length-1,phase-1));
+            return MeteorMathV2.SUBTRACTORS[idx];
+        }
+
+        int targetForPhase(int phase){
+            return phase<=1?5:Math.min(12,4+phase);
+        }
+
+        int weaponPurchaseCost(int weapon){
+            return Math.max(40,weapon*2);
+        }
+
+        int ammoPackCost(int weapon){
+            return Math.max(12,10+weapon/2);
+        }
+
+        int nextShopPhase(){
+            return Math.min(WaveManager.MAX_WAVE,waves.wave+1);
+        }
+
+        int shopAmmoWeapon(){
+            int w=inv.preferredFiniteWeapon();
+            if(w>2)return w;
+            int next=subtractorForPhase(nextShopPhase());
+            return next>2?next:4;
+        }
+
+        void configureAmmoDropPlan(){
+            phaseAmmoPlan.clear();
+            phaseAmmoDropIndex=0;
+            phaseAmmoDropTimer=5.5f;
+            if(!subtractionMechanic||waves.wave<2)return;
+
+            int current=subtractorForPhase(waves.wave);
+            if(waves.wave==2){
+                phaseAmmoPlan.add(4);
+                return;
+            }
+
+            ArrayList<Integer> previous=new ArrayList<Integer>();
+            for(int w:MeteorMathV2.SUBTRACTORS){
+                if(w<=2)continue;
+                if(w<current || waves.wave>=8&&w<128)previous.add(w);
+            }
+            if(!previous.isEmpty())phaseAmmoPlan.add(previous.get(rnd.nextInt(previous.size())));
+            phaseAmmoPlan.add(current);
+        }
+
+        String serializeIntList(List<Integer> values){
+            StringBuilder b=new StringBuilder();
+            for(Integer v:values){if(b.length()>0)b.append(',');b.append(v);}
+            return b.toString();
+        }
+
+        void restoreIntList(String raw,List<Integer> out){
+            out.clear();
+            if(raw==null||raw.length()==0)return;
+            for(String p:raw.split(",")){try{out.add(Integer.parseInt(p.trim()));}catch(Exception ignored){}}
+        }
+
+        String serializeQuizKeys(){
+            StringBuilder b=new StringBuilder();
+            for(String k:usedQuizExpressions){if(b.length()>0)b.append(';');b.append(k);}
+            return b.toString();
+        }
+
+        void restoreQuizKeys(String raw){
+            usedQuizExpressions.clear();
+            if(raw==null||raw.length()==0)return;
+            for(String k:raw.split(";"))if(k.length()>0)usedQuizExpressions.add(k);
         }
 
         String protectedSiteName(){
@@ -648,8 +742,14 @@ public class GameV2Activity extends Activity {
         void preparePhase(){
             phaseActiveSeconds=0f;phaseTimeBonus=0;
             capturePhaseEnvironment();
-            lastDivisorAcquired=scheduledDivisorForPhase();
-            if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
+            if(subtractionMechanic){
+                lastDivisorAcquired=0;
+                configureAmmoDropPlan();
+            }else{
+                phaseAmmoPlan.clear();phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
+                lastDivisorAcquired=scheduledDivisorForPhase();
+                if(lastDivisorAcquired>0)inv.unlockDivisor(lastDivisorAcquired);
+            }
             loadCityForPhase();
             initializeDamageGrid();
             protectedSiteHealth=100f;
@@ -671,11 +771,35 @@ public class GameV2Activity extends Activity {
             beginNextWave();
         }
 
-        void buySubtractor(){
-            if(inv.money<SHOP_SUBTRACTOR_COST)return;
-            inv.money-=SHOP_SUBTRACTOR_COST;
-            inv.addSubtractor(10);
-            audio.play("bonus_subtrator.wav");
+        void buyCurrentWeapon(){
+            if(!subtractionMechanic)return;
+            int phase=nextShopPhase();
+            int weapon=subtractorForPhase(phase);
+            if(weapon<=2||inv.hasWeapon(weapon)){inv.selectedWeapon=weapon;return;}
+            int cost=weaponPurchaseCost(weapon);
+            if(inv.money<cost)return;
+            inv.money-=cost;
+            inv.unlockWeapon(weapon,3*targetForPhase(phase));
+            inv.selectedWeapon=weapon;
+            audio.play("municao_desbloqueada.wav");
+        }
+
+        void buyAmmoPack(){
+            if(!subtractionMechanic)return;
+            int weapon=shopAmmoWeapon();
+            if(weapon<=2||!inv.hasWeapon(weapon))return;
+            int cost=ammoPackCost(weapon);
+            if(inv.money<cost)return;
+            inv.money-=cost;
+            inv.addWeaponAmmo(weapon,2);
+            audio.play("bonus_municao.wav");
+        }
+
+        void buyHyper(){
+            if(inv.money<SHOP_H_COST)return;
+            inv.money-=SHOP_H_COST;
+            inv.addHyper(1);
+            audio.play("bonus_municao.wav");
         }
 
         void buyBomb(){
@@ -1114,13 +1238,16 @@ public class GameV2Activity extends Activity {
                     .putInt("destroyedThisWave",waves.destroyedThisWave)
                     .putInt("targetThisWave",waves.targetThisWave)
                     .putInt("difficulty",selectedDifficulty)
+                    .putBoolean("subtractionMechanic",subtractionMechanic)
                     .putFloat("cityHealth",cityHealth)
                     .putInt("score",score)
                     .putInt("destroyedTotal",destroyedTotal)
                     .putString("divisors",divs.toString())
                     .putInt("selectedDivisor",inv.selectedDivisor)
-                    .putInt("subtractorCharge",inv.subtractorCharge)
-                    .putInt("subtractorValue",inv.subtractorValue)
+                    .putString("weapons",inv.serializeWeapons())
+                    .putString("weaponAmmo",inv.serializeWeaponAmmo())
+                    .putInt("selectedWeapon",inv.selectedWeapon)
+                    .putInt("hyperAmmo",inv.hyperAmmo)
                     .putInt("money",inv.money)
                     .putInt("bombZero",inv.bombZero)
                     .putFloat("shieldSeconds",inv.shieldSeconds)
@@ -1129,6 +1256,10 @@ public class GameV2Activity extends Activity {
                     .putBoolean("protectedSiteBonusAwarded",protectedSiteBonusAwarded)
                     .putString("cityDamageGrid",serializeCityDamage())
                     .putFloat("phaseActiveSeconds",phaseActiveSeconds)
+                    .putString("usedQuizExpressions",serializeQuizKeys())
+                    .putString("phaseAmmoPlan",serializeIntList(phaseAmmoPlan))
+                    .putInt("phaseAmmoDropIndex",phaseAmmoDropIndex)
+                    .putFloat("phaseAmmoDropTimer",phaseAmmoDropTimer)
                     .apply();
             saveNotice=true;saveNoticeTimer=1.6f;
         }
@@ -1136,7 +1267,7 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
@@ -1147,16 +1278,24 @@ public class GameV2Activity extends Activity {
             waves.destroyedThisWave=Math.max(0,sp.getInt("destroyedThisWave",0));
             waves.targetThisWave=Math.max(1,sp.getInt("targetThisWave",Math.min(12,4+waves.wave)));
             selectedDifficulty=Math.max(0,Math.min(5,sp.getInt("difficulty",0)));waves.difficulty=selectedDifficulty;
-            cityHealth=Math.max(1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
+            subtractionMechanic=sp.getBoolean("subtractionMechanic",subtractionMechanic);
+            cityHealth=Math.max(.1f,Math.min(100f,sp.getFloat("cityHealth",100f)));
             score=Math.max(0,sp.getInt("score",0));destroyedTotal=Math.max(0,sp.getInt("destroyedTotal",0));
+
+            inv.resetArsenal();
             inv.divisors.clear();
             String raw=sp.getString("divisors","2,3");
             if(raw!=null)for(String part:raw.split(",")){try{int d=Integer.parseInt(part);if(d>=2&&d<=17&&MeteorMathV2.isPrime(d))inv.divisors.add(d);}catch(Exception ignored){}}
             if(inv.divisors.isEmpty()){inv.divisors.add(2);inv.divisors.add(3);}
             inv.selectedDivisor=sp.getInt("selectedDivisor",2);
             if(!inv.divisors.contains(inv.selectedDivisor))inv.selectedDivisor=2;
-            inv.subtractorCharge=Math.max(0,sp.getInt("subtractorCharge",0));
-            inv.subtractorValue=Math.max(1,Math.min(Math.max(1,inv.subtractorCharge),sp.getInt("subtractorValue",1)));
+
+            inv.selectedWeapon=sp.getInt("selectedWeapon",2);
+            inv.restoreWeapons(sp.getString("weapons","2"));
+            if(!inv.hasWeapon(inv.selectedWeapon))inv.selectedWeapon=2;
+            inv.restoreWeaponAmmo(sp.getString("weaponAmmo",""));
+            inv.hyperAmmo=Math.max(0,sp.getInt("hyperAmmo",0));
+
             inv.money=Math.max(0,sp.getInt("money",0));inv.bombZero=Math.max(0,sp.getInt("bombZero",0));
             inv.shieldSeconds=Math.max(0,sp.getFloat("shieldSeconds",0));
             loadCityForPhase();initializeDamageGrid();
@@ -1167,6 +1306,11 @@ public class GameV2Activity extends Activity {
             protectedFireTimer=0f;
             phaseActiveSeconds=Math.max(0f,sp.getFloat("phaseActiveSeconds",0f));
             phaseTimeBonus=0;
+            restoreQuizKeys(sp.getString("usedQuizExpressions",""));
+            restoreIntList(sp.getString("phaseAmmoPlan",""),phaseAmmoPlan);
+            phaseAmmoDropIndex=Math.max(0,Math.min(phaseAmmoPlan.size(),sp.getInt("phaseAmmoDropIndex",0)));
+            phaseAmmoDropTimer=Math.max(0f,sp.getFloat("phaseAmmoDropTimer",5.5f));
+            if(subtractionMechanic&&waves.wave>=2&&phaseAmmoPlan.isEmpty())configureAmmoDropPlan();
             capturePhaseEnvironment();
             preWaveTimer=PRE_WAVE_DURATION;spawnTimer=0;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
             playWaveMusic();audio.playLong("sirene_80bpm_10.wav");
