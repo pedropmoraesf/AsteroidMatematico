@@ -2,12 +2,14 @@ package br.grassinimoraes.divasteroides;
 
 import org.junit.Test;
 
+import java.util.HashSet;
 import java.util.Random;
+import java.util.Set;
 
 import static org.junit.Assert.*;
 
 public class GameLogicTest {
-    @Test public void inventarioComecaComDoisETres() {
+    @Test public void inventarioClassicoComecaComDoisETres() {
         PlayerInventory inv=new PlayerInventory();
         assertTrue(inv.divisors.contains(2));
         assertTrue(inv.divisors.contains(3));
@@ -18,22 +20,50 @@ public class GameLogicTest {
         assertEquals(5,inv.highestDivisor());
     }
 
-    @Test public void subtratorRespeitaCarga() {
+    @Test public void arsenalSubtracaoComecaComDoisInfinito() {
         PlayerInventory inv=new PlayerInventory();
-        inv.addSubtractor(12);
-        assertEquals(12,inv.subtractorCharge);
-        assertTrue(inv.spendSubtractor(7));
-        assertEquals(5,inv.subtractorCharge);
-        assertFalse(inv.spendSubtractor(6));
-        assertTrue(inv.spendSubtractor(5));
-        assertEquals(0,inv.subtractorCharge);
-        assertEquals(1,inv.subtractorValue);
+        assertTrue(inv.hasWeapon(2));
+        assertEquals(Integer.MAX_VALUE,inv.ammoForWeapon(2));
+        assertTrue(inv.spendWeaponAmmo(2));
+        assertEquals(Integer.MAX_VALUE,inv.ammoForWeapon(2));
+        assertFalse(inv.hasWeapon(4));
+    }
+
+    @Test public void armasFinitasConsomemERecebemMunicao() {
+        PlayerInventory inv=new PlayerInventory();
+        assertTrue(inv.unlockWeapon(4,18));
+        assertEquals(18,inv.ammoForWeapon(4));
+        assertTrue(inv.spendWeaponAmmo(4));
+        assertEquals(17,inv.ammoForWeapon(4));
+        inv.addWeaponAmmo(4,2);
+        assertEquals(19,inv.ammoForWeapon(4));
+        assertFalse(inv.unlockWeapon(3,10));
+    }
+
+    @Test public void armaHConsomeUmaCarga() {
+        PlayerInventory inv=new PlayerInventory();
+        assertFalse(inv.spendHyper());
+        inv.addHyper(2);
+        assertTrue(inv.spendHyper());
+        assertEquals(1,inv.hyperAmmo);
+        assertTrue(inv.spendHyper());
+        assertFalse(inv.spendHyper());
+    }
+
+    @Test public void reparoCustaDezPorCentoDoSaldo() {
+        PlayerInventory inv=new PlayerInventory();
+        inv.money=100;
+        assertEquals(10,inv.repairCost10Percent());
+        assertTrue(inv.repair10Percent(50f));
+        assertEquals(90,inv.money);
+        assertFalse(inv.repair10Percent(100f));
     }
 
     @Test public void ondasSaoCurtasEProgressivas() {
         WaveManager w=new WaveManager();
         assertEquals(1,w.wave);
         assertEquals(5,w.targetThisWave);
+        assertTrue(w.specialChance()>0f);
         w.nextWave();
         assertEquals(2,w.wave);
         assertEquals(6,w.targetThisWave);
@@ -41,12 +71,12 @@ public class GameLogicTest {
         assertEquals(WaveManager.MAX_WAVE,w.wave);
         assertTrue(w.isFinalWave());
         assertTrue(w.targetThisWave<=12);
-        assertTrue(w.maxMeteorValue()<=200);
+        assertTrue(w.maxMeteorValue()<=MeteorMathV2.MAX_METEOR_VALUE);
         assertTrue(w.meteorSpeed()>0f);
         assertTrue(w.spawnSeconds()>=.82f);
     }
 
-    @Test public void meteorosIniciaisSaoResolutiveisComDoisETres() {
+    @Test public void meteorosClassicosIniciaisSaoResolutiveisComDoisETres() {
         Random r=new Random(12345);
         for(int i=0;i<300;i++){
             int n=MeteorMathV2.generateNormalValue(r,18,3,false);
@@ -58,29 +88,59 @@ public class GameLogicTest {
         }
     }
 
-    @Test public void valorNormalNuncaUltrapassaDuzentos() {
+    @Test public void valoresDaSubtracaoRespeitamLimite() {
         Random r=new Random(6789);
-        for(int i=0;i<500;i++){
-            int n=MeteorMathV2.generateNormalValue(r,999,17,true);
-            assertTrue(n<=200);
-            assertTrue(n>=2);
-        }
-    }
-
-    @Test public void quizSempreContemRespostaCorreta() {
-        Random r=new Random(2026);
-        for(int wave=1;wave<=12;wave++){
-            for(int j=0;j<50;j++){
-                MeteorMathV2.Quiz q=MeteorMathV2.generateQuiz(r,j%2==0,wave);
-                boolean found=false;
-                for(int option:q.options)if(option==q.answer)found=true;
-                assertTrue(found);
-                assertEquals(q.multiplication ? q.a*q.b : q.a+q.b,q.answer);
+        for(int wave=1;wave<=25;wave++){
+            for(int i=0;i<100;i++){
+                int n=MeteorMathV2.generateSubtractionValue(r,999,wave);
+                assertTrue(n>=2);
+                assertTrue(n<=MeteorMathV2.MAX_METEOR_VALUE);
             }
         }
     }
 
-    @Test public void divisaoSoAceitaDivisorExato() {
+    @Test public void quizTemQuatroOperacoesResultadosNaturaisEContaUnica() {
+        Random r=new Random(2026);
+        Set<String> used=new HashSet<String>();
+        Set<MeteorMathV2.Operation> seen=new HashSet<MeteorMathV2.Operation>();
+
+        for(int difficulty=0;difficulty<=5;difficulty++){
+            for(int wave=1;wave<=12;wave++){
+                for(int j=0;j<35;j++){
+                    MeteorMathV2.Quiz q=MeteorMathV2.generateQuiz(r,difficulty,wave,used);
+                    assertNotNull(q);
+                    assertTrue(q.answer>=0);
+                    assertTrue(used.contains(q.key()));
+                    seen.add(q.operation);
+
+                    boolean found=false;
+                    for(int option:q.options)if(option==q.answer)found=true;
+                    assertTrue(found);
+
+                    switch(q.operation){
+                        case ADD:assertEquals(q.a+q.b,q.answer);break;
+                        case SUBTRACT:
+                            assertTrue(q.a>=q.b);
+                            assertEquals(q.a-q.b,q.answer);
+                            break;
+                        case MULTIPLY:
+                            assertTrue(q.b>=2&&q.b<=9);
+                            assertEquals(q.a*q.b,q.answer);
+                            break;
+                        case DIVIDE:
+                            assertTrue(q.b>=2&&q.b<=9);
+                            assertEquals(0,q.a%q.b);
+                            assertEquals(q.a/q.b,q.answer);
+                            break;
+                    }
+                }
+            }
+        }
+
+        assertEquals(4,seen.size());
+    }
+
+    @Test public void divisaoClassicaSoAceitaDivisorExato() {
         assertTrue(MeteorMathV2.canDivide(18,2));
         assertTrue(MeteorMathV2.canDivide(18,3));
         assertFalse(MeteorMathV2.canDivide(18,5));

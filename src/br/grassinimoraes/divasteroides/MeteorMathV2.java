@@ -3,20 +3,46 @@ package br.grassinimoraes.divasteroides;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 
 final class MeteorMathV2 {
+    // Mantidos para a mecânica clássica de divisores.
     static final int[] PRIMES = {2,3,5,7,11,13,17};
+
+    // Arsenal da nova mecânica: potências sucessivas de 2.
+    static final int[] SUBTRACTORS = {2,4,8,16,32,64,128};
+    static final int MAX_METEOR_VALUE = 200;
+
+    enum Operation {
+        ADD("+"), SUBTRACT("-"), MULTIPLY("x"), DIVIDE("/");
+        final String symbol;
+        Operation(String symbol){this.symbol=symbol;}
+    }
 
     static final class Quiz {
         final int a, b, answer;
-        final boolean multiplication;
+        final Operation operation;
         final int[] options;
-        Quiz(int a, int b, boolean multiplication, int[] options) {
-            this.a=a; this.b=b; this.multiplication=multiplication;
-            this.answer = multiplication ? a*b : a+b;
+
+        Quiz(int a,int b,Operation operation,int[] options) {
+            this.a=a;
+            this.b=b;
+            this.operation=operation;
+            this.answer=answerFor(a,b,operation);
             this.options=options;
         }
-        String expression() { return a + (multiplication ? " x " : " + ") + b; }
+
+        static int answerFor(int a,int b,Operation op) {
+            switch(op) {
+                case SUBTRACT:return a-b;
+                case MULTIPLY:return a*b;
+                case DIVIDE:return b==0?0:a/b;
+                default:return a+b;
+            }
+        }
+
+        String expression() { return a+" "+operation.symbol+" "+b; }
+        String key() { return operation.name()+":"+a+":"+b; }
     }
 
     private MeteorMathV2() {}
@@ -32,7 +58,7 @@ final class MeteorMathV2 {
     }
 
     static int generateNormalValue(Random r, int maxValue, int highestUnlockedPrime, boolean allowLargePrime) {
-        maxValue = Math.max(6, Math.min(200,maxValue));
+        maxValue = Math.max(6, Math.min(MAX_METEOR_VALUE,maxValue));
         if (allowLargePrime && maxValue >= 37 && r.nextFloat() < 0.13f) {
             List<Integer> primes = new ArrayList<Integer>();
             for (int n=37;n<=maxValue;n++) if (isPrime(n)) primes.add(n);
@@ -49,6 +75,18 @@ final class MeteorMathV2 {
         return candidates.get(r.nextInt(candidates.size()));
     }
 
+    static int generateSubtractionValue(Random r,int maxValue,int wave) {
+        maxValue=Math.max(6,Math.min(MAX_METEOR_VALUE,maxValue));
+        int floor=Math.min(maxValue-1,2+Math.max(0,wave-1));
+        if (r.nextFloat()<.72f) {
+            int steps=Math.max(1,maxValue/2);
+            int value=2*(1+r.nextInt(steps));
+            if (value>maxValue) value=maxValue;
+            return Math.max(2,value);
+        }
+        return floor+r.nextInt(Math.max(1,maxValue-floor+1));
+    }
+
     private static boolean fullyFactorableByUnlocked(int n, int highest) {
         int remaining=n;
         for (int p : PRIMES) {
@@ -58,25 +96,76 @@ final class MeteorMathV2 {
         return remaining==1;
     }
 
-    static Quiz generateQuiz(Random r, boolean multiplication, int wave) {
-        int a, b;
-        if (multiplication) {
-            int max = Math.min(10, 4 + wave/2);
-            a = 2 + r.nextInt(Math.max(1, max-1));
-            b = 2 + r.nextInt(Math.max(1, max-1));
+    static Quiz generateQuiz(Random r,int difficulty,int wave,Set<String> used) {
+        difficulty=Math.max(0,Math.min(5,difficulty));
+        for (int tries=0;tries<120;tries++) {
+            Operation op=Operation.values()[r.nextInt(Operation.values().length)];
+            Quiz q=buildQuiz(r,difficulty,wave,op);
+            if (used==null || used.add(q.key())) return q;
+        }
+
+        // O espaço de contas é grande, mas este fallback evita travar uma partida muito longa.
+        for (Operation op:Operation.values()) {
+            Quiz q=buildQuiz(r,difficulty,wave,op);
+            if (used==null || used.add(q.key())) return q;
+        }
+        return buildQuiz(r,difficulty,wave,Operation.ADD);
+    }
+
+    private static Quiz buildQuiz(Random r,int difficulty,int wave,Operation op) {
+        int phase=Math.max(1,wave);
+        int a,b;
+
+        if (op==Operation.MULTIPLY || op==Operation.DIVIDE) {
+            int[] lo={1,1,10,100,1000,10000};
+            int[] hi={5,9,99,999,9999,99999};
+            int min=lo[difficulty],max=hi[difficulty];
+            int phaseMax=scaledMax(min,max,phase);
+            int unitMax=Math.min(9,Math.max(difficulty==0?5:6,5+phase/2));
+            b=2+r.nextInt(Math.max(1,unitMax-1));
+
+            if (op==Operation.MULTIPLY) {
+                a=min+r.nextInt(Math.max(1,phaseMax-min+1));
+            } else {
+                int qMin=Math.max(1,(min+b-1)/b);
+                int qMax=Math.max(qMin,phaseMax/b);
+                int q=qMin+r.nextInt(Math.max(1,qMax-qMin+1));
+                a=q*b;
+            }
         } else {
-            int max = Math.min(50, 12 + wave*3);
-            a = 2 + r.nextInt(Math.max(2, max/2));
-            b = 2 + r.nextInt(Math.max(2, max/2));
+            int[] maxByDifficulty={20,99,999,9999,99999,999999};
+            int max=scaledMax(difficulty==0?10:20,maxByDifficulty[difficulty],phase);
+            if (op==Operation.ADD) {
+                a=r.nextInt(max+1);
+                b=r.nextInt(Math.max(1,max-a+1));
+            } else {
+                a=r.nextInt(max+1);
+                b=r.nextInt(a+1);
+            }
         }
-        int ans = multiplication ? a*b : a+b;
-        int wrong1 = Math.max(1, ans + (r.nextBoolean()?1:-1)*(1+r.nextInt(5)));
-        int wrong2 = Math.max(1, ans + (r.nextBoolean()?1:-1)*(6+r.nextInt(7)));
-        while (wrong2 == wrong1 || wrong2 == ans) wrong2++;
-        int[] opts = {ans, wrong1, wrong2};
+
+        int ans=Quiz.answerFor(a,b,op);
+        int[] opts=makeOptions(r,ans);
+        return new Quiz(a,b,op,opts);
+    }
+
+    private static int scaledMax(int min,int max,int wave) {
+        if (max<=min) return max;
+        float progress=Math.min(1f,(wave-1)/8f);
+        int start=min+Math.max(4,(max-min)/4);
+        return Math.min(max,Math.max(min,Math.round(start+(max-start)*progress)));
+    }
+
+    private static int[] makeOptions(Random r,int ans) {
+        int span=Math.max(3,Math.min(500,Math.max(6,Math.abs(ans)/8)));
+        int wrong1=Math.max(0,ans+(r.nextBoolean()?1:-1)*(1+r.nextInt(span)));
+        int wrong2=Math.max(0,ans+(r.nextBoolean()?1:-1)*(span+1+r.nextInt(span+2)));
+        while (wrong1==ans) wrong1++;
+        while (wrong2==ans || wrong2==wrong1) wrong2++;
+        int[] opts={ans,wrong1,wrong2};
         for (int i=opts.length-1;i>0;i--) {
-            int j=r.nextInt(i+1); int t=opts[i]; opts[i]=opts[j]; opts[j]=t;
+            int j=r.nextInt(i+1),t=opts[i];opts[i]=opts[j];opts[j]=t;
         }
-        return new Quiz(a,b,multiplication,opts);
+        return opts;
     }
 }
