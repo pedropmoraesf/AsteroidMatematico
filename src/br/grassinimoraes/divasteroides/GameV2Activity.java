@@ -1463,18 +1463,51 @@ public class GameV2Activity extends Activity {
 
         String difficultyName(){String[] n={"MUITO FACIL","FACIL","MEDIO","DIFICIL","MUITO DIFICIL","INSANO"};return n[Math.max(0,Math.min(n.length-1,selectedDifficulty))];}
         void drawOptions(Canvas c){
-            drawDarkCard(c,180,35,620,440);drawText(c,"OPCOES",400,70,30,Color.CYAN,true);
-            drawMenuButton(c,new RectF(245,88,555,128),"DIFICULDADE: "+difficultyName(),false);
-            drawMenuButton(c,new RectF(245,140,555,180),"MIRA LASER: "+(laserEnabled?"LIGADA":"DESLIGADA"),false);
-            drawMenuButton(c,new RectF(245,192,555,232),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);
-            drawMenuButton(c,new RectF(245,244,555,284),"MANUAL",false);
-            drawMenuButton(c,new RectF(245,296,555,336),"APAGAR SCORE",false);
-            if(scoreClearedNotice)drawText(c,"SCORE APAGADO",400,356,13,Color.YELLOW,true);
-            drawMenuButton(c,new RectF(310,378,490,418),"VOLTAR",false);
+            drawDarkCard(c,170,24,630,452);drawText(c,"OPCOES",400,57,28,Color.CYAN,true);
+            drawMenuButton(c,new RectF(235,74,565,111),"DIFICULDADE: "+difficultyName(),false);
+            drawMenuButton(c,new RectF(235,119,565,156),"MIRA LASER: "+(laserEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(235,164,565,201),"VIBRACAO: "+(vibrationEnabled?"LIGADA":"DESLIGADA"),false);
+            drawMenuButton(c,new RectF(235,209,565,246),"CLIMA ONLINE: "+(dynamicWeatherEnabled?"LIGADO":"DESLIGADO"),false);
+            drawText(c,"Consulta unica por fase - dados Open-Meteo",400,262,9,Color.LTGRAY,true);
+            drawMenuButton(c,new RectF(235,272,565,309),"MANUAL",false);
+            drawMenuButton(c,new RectF(235,317,565,354),"APAGAR SCORE",false);
+            if(scoreClearedNotice)drawText(c,"SCORE APAGADO",400,371,11,Color.YELLOW,true);
+            drawMenuButton(c,new RectF(310,390,490,427),"VOLTAR",false);
+        }
+
+        void drawSky(Canvas c){
+            if(phaseDay){
+                p.setColor(Color.rgb(92,174,232));
+                c.drawRect(0,0,800,480,p);
+                p.setColor(Color.argb(45,255,238,170));
+                c.drawCircle(700,70,34,p);
+            }else{
+                p.setColor(Color.rgb(7,20,42));
+                c.drawRect(0,0,800,480,p);
+                drawStars(c);
+            }
+            drawWeatherClouds(c);
+        }
+
+        void drawWeatherClouds(Canvas c){
+            if(!dynamicWeatherEnabled)return;
+            int cover=Math.max(phaseRain?55:0,phaseCloudCover);
+            if(cover<20)return;
+            int clouds=1+cover/22;
+            int base=phaseDay?Color.rgb(225,232,238):Color.rgb(72,82,98);
+            for(int i=0;i<clouds;i++){
+                float x=70+(i*157+(waves.wave*31)%90)%720;
+                float y=38+(i*43)%125;
+                float w=75+(i%3)*22;
+                p.setColor(Color.argb(phaseRain?205:175,Color.red(base),Color.green(base),Color.blue(base)));
+                c.drawRect(x,y,x+w,y+14,p);
+                c.drawRect(x+12,y-9,x+w-18,y+14,p);
+                c.drawRect(x+30,y-16,x+w-34,y+14,p);
+            }
         }
 
         void drawGame(Canvas c){
-            p.setColor(Color.rgb(7,20,42));c.drawRect(0,0,800,480,p);drawStars(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawProtectedSiteDamage(c);drawShieldDome(c);
+            drawSky(c);c.save();c.translate(0,cityShakeOffset);drawCity(c);drawProtectedSiteDamage(c);drawShieldDome(c);
             for(Particle q:particles){p.setColor(q.color);p.setAlpha((int)(255*q.life/q.maxLife));c.drawRect(q.x-q.size,q.y-q.size,q.x+q.size,q.y+q.size,p);p.setAlpha(255);}for(Meteor m:meteors)if(!m.dead)drawMeteor(c,m);if(commercial!=null&&commercial.active)drawPlane(c,commercial);if(military!=null)drawPlane(c,military);drawCannon(c);drawProjectile(c);c.restore();drawAimTarget(c);drawHud(c);drawUiParticles(c);
             if(preWave){
                 p.setColor(Color.argb(145+(int)(55*Math.abs(Math.sin(preWaveTimer*4))),120,0,0));c.drawRect(0,0,800,390,p);
@@ -1486,12 +1519,14 @@ public class GameV2Activity extends Activity {
             }
             if(waveClear){
                 p.setColor(Color.argb(175,0,20,38));c.drawRect(0,0,800,390,p);
-                drawText(c,"FASE "+completedWave+" CONCLUIDA",400,176,36,Color.CYAN,true);
-                drawText(c,"CIDADE REPARADA - 100%",400,218,18,Color.WHITE,true);
+                drawText(c,"FASE "+completedWave+" CONCLUIDA",400,158,34,Color.CYAN,true);
+                drawText(c,"CIDADE REPARADA - 100%",400,198,17,Color.WHITE,true);
                 if(completedWave>1){
-                    if(lastProtectedBonus>0)drawText(c,"OBJETIVO PRESERVADO  +"+lastProtectedBonus+" PONTOS",400,252,16,Color.YELLOW,true);
-                    else drawText(c,"OBJETIVO ESTRATEGICO PERDIDO",400,252,16,Color.RED,true);
+                    if(lastProtectedBonus>0)drawText(c,"OBJETIVO PRESERVADO  +"+lastProtectedBonus+" PONTOS",400,230,15,Color.YELLOW,true);
+                    else drawText(c,"OBJETIVO ESTRATEGICO PERDIDO",400,230,15,Color.RED,true);
                 }
+                drawText(c,"BONUS DE TEMPO  +"+phaseTimeBonus,400,264,16,Color.YELLOW,true);
+                drawText(c,"TEMPO DE COMBATE  "+Math.round(phaseActiveSeconds)+"s",400,292,13,Color.WHITE,true);
             }
             if(intermission)drawIntermission(c);
             if(quizOpen)drawQuiz(c);
