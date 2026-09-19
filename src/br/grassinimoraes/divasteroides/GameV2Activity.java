@@ -157,6 +157,26 @@ public class GameV2Activity extends Activity {
         }
     }
 
+    static final class WorldText {
+        final String text;
+        final int color;
+        float x,y,life;
+        final float maxLife;
+        WorldText(String text,float x,float y,int color,float life){
+            this.text=text;this.x=x;this.y=y;this.color=color;this.life=life;this.maxLife=life;
+        }
+    }
+
+    static final class PickupFly {
+        final Bonus bonus;
+        final int projectileIndex;
+        final float startX,startY,endX,endY,maxLife;
+        float life;
+        PickupFly(Bonus bonus,int projectileIndex,float startX,float startY,float endX,float endY,float life){
+            this.bonus=bonus;this.projectileIndex=projectileIndex;this.startX=startX;this.startY=startY;this.endX=endX;this.endY=endY;this.life=life;this.maxLife=life;
+        }
+    }
+
     enum Kind { NORMAL, ADD, SUB, MULT, DIV, BONUS }
     enum Bonus { AMMO, HYPER, MONEY, HEALTH, SHIELD, BOMB0 }
 
@@ -199,6 +219,8 @@ public class GameV2Activity extends Activity {
         final List<Particle> particles=new ArrayList<Particle>();
         final List<Particle> uiParticles=new ArrayList<Particle>();
         final List<HudNotice> hudNotices=new ArrayList<HudNotice>();
+        final List<WorldText> worldTexts=new ArrayList<WorldText>();
+        final List<PickupFly> pickupFlights=new ArrayList<PickupFly>();
         final List<PlaneFragment> planeDebris=new ArrayList<PlaneFragment>();
         final Set<String> usedQuizExpressions=new HashSet<String>();
         final List<Integer> phaseAmmoPlan=new ArrayList<Integer>();
@@ -260,7 +282,7 @@ public class GameV2Activity extends Activity {
         boolean bombSequence=false;
         float bombSequenceTimer=0f,bombFlashTimer=0f;
         Meteor pendingBonusTarget;
-        float pendingBonusTimer=0f;
+        float pendingBonusTimer=0f,pendingBonusX=0f,pendingBonusY=0f;
         int lastDivisorAcquired=0;
         boolean aiming=false;
         float aimX=400f,aimY=180f,aimTargetTimer=0f,aimCharge=0f,chargeParticleTimer=0f;
@@ -351,13 +373,13 @@ public class GameV2Activity extends Activity {
         float lx(float x){return x/scaleX;} float ly(float y){return y/scaleY;}
 
         void resetGame(){
-            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();planeDebris.clear();usedQuizExpressions.clear();phaseAmmoPlan.clear();
             cityHealth=100;score=0;running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;
             commercial=null;military=null;selectedMode=0;cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;
             destroyedTotal=0;scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;cannonDeploy=0;
             waveClear=false;waveClearTimer=0;completedWave=0;shotColor=Color.YELLOW;
             victory=false;fireworkTimer=0;saveNotice=false;saveNoticeTimer=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;pendingBonusX=0;pendingBonusY=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;aimTargetIndex=0;shotProjectileIndex=0;chargedProjectileValue=2;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;shotProjectileValue=2;
             phaseAmmoDropIndex=0;phaseAmmoDropTimer=0f;
@@ -901,8 +923,8 @@ public class GameV2Activity extends Activity {
             if(pendingBonusTarget==null)return;
             pendingBonusTimer-=dt;
             if(pendingBonusTimer<=0){
-                Meteor m=pendingBonusTarget;pendingBonusTarget=null;
-                if(m!=null&&!m.dead)collectBonus(m);
+                Meteor m=pendingBonusTarget;float fx=pendingBonusX,fy=pendingBonusY;pendingBonusTarget=null;
+                if(m!=null&&!m.dead)collectBonusAt(m,fx,fy);
             }
         }
 
@@ -995,6 +1017,75 @@ public class GameV2Activity extends Activity {
                 float vx=-38+rnd.nextFloat()*76f;
                 float vy=-42-rnd.nextFloat()*75f;
                 particles.add(new Particle(x,y,vx,vy,.34f+rnd.nextFloat()*.42f,earth[rnd.nextInt(earth.length)],1.5f+rnd.nextFloat()*3.2f));
+            }
+        }
+
+        void addWorldMoney(float x,float y,int amount){
+            if(amount<=0)return;
+            worldTexts.add(new WorldText("+R$ "+amount,x,y,Color.rgb(255,190,45),.78f));
+        }
+
+        void updateWorldTexts(float dt){
+            Iterator<WorldText> it=worldTexts.iterator();
+            while(it.hasNext()){
+                WorldText q=it.next();
+                q.life-=dt;
+                if(q.life<=0){it.remove();continue;}
+                q.y-=22f*dt;
+            }
+        }
+
+        void drawWorldTexts(Canvas c){
+            for(WorldText q:worldTexts){
+                float t=Math.max(0f,Math.min(1f,q.life/q.maxLife));
+                int alpha=Math.max(0,Math.min(255,Math.round(255f*t*t)));
+                p.setTypeface(gameFont);p.setFakeBoldText(true);p.setTextSize(14);p.setTextAlign(Paint.Align.CENTER);
+                p.setColor(Color.argb(alpha,35,20,0));c.drawText(q.text,q.x+1,q.y+1,p);
+                p.setColor(Color.argb(alpha,Color.red(q.color),Color.green(q.color),Color.blue(q.color)));c.drawText(q.text,q.x,q.y,p);
+            }
+        }
+
+        float pickupHudX(int projectileIndex){
+            int idx=Math.max(0,Math.min(6,projectileIndex));
+            return 14f+idx*52f+22.5f;
+        }
+
+        void startPickupFlight(Meteor m,float startX,float startY){
+            if(m==null)return;
+            int idx=0;
+            float endX,endY=430f;
+            if(m.bonus==Bonus.HYPER){
+                idx=7;endX=446f;
+            }else{
+                idx=subtractionMechanic?projectileIndexForSubtractor(m.ammoValue):projectileIndexForDivisor(m.ammoValue);
+                endX=pickupHudX(idx);
+            }
+            pickupFlights.add(new PickupFly(m.bonus,idx,startX,startY,endX,endY,.42f));
+        }
+
+        void updatePickupFlights(float dt){
+            Iterator<PickupFly> it=pickupFlights.iterator();
+            while(it.hasNext()){
+                PickupFly q=it.next();
+                q.life-=dt;
+                if(q.life<=0)it.remove();
+            }
+        }
+
+        void drawPickupFlights(Canvas c){
+            for(PickupFly q:pickupFlights){
+                float t=1f-Math.max(0f,Math.min(1f,q.life/q.maxLife));
+                float eased=1f-(1f-t)*(1f-t)*(1f-t);
+                float arc=(float)Math.sin(Math.PI*t)*32f;
+                float x=q.startX+(q.endX-q.startX)*eased;
+                float y=q.startY+(q.endY-q.startY)*eased-arc;
+                float half=10f-3f*t;
+                if(projectileSheet!=null){
+                    drawTile(c,projectileSheet,8,1,q.projectileIndex,new RectF(x-half,y-half,x+half,y+half),pixel);
+                }else{
+                    p.setColor(q.bonus==Bonus.HYPER?Color.CYAN:Color.YELLOW);
+                    c.drawCircle(x,y,half*.55f,p);
+                }
             }
         }
 
@@ -1231,6 +1322,8 @@ public class GameV2Activity extends Activity {
 
         void update(float dt){
             updateHudNotices(dt);
+            updateWorldTexts(dt);
+            updatePickupFlights(dt);
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);updatePlaneDebris(dt);return;}
             if(intermission){updateParticles(dt);updatePlaneDebris(dt);return;}
@@ -1413,11 +1506,11 @@ public class GameV2Activity extends Activity {
         boolean loadSavedGame(){
             SharedPreferences sp=savePrefs();
             if(!sp.getBoolean("exists",false))return false;
-            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
+            meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();planeDebris.clear();commercial=null;military=null;quizMeteor=null;
             running=false;preWave=true;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;
             cityShaking=false;cityShakeOffset=0;cannonAngle=-45;cannonAnim=0;shotTimer=0;cannonDeploy=0;
             scoreSaved=false;fireParticleTimer=0;shieldVisualAge=0;shieldWasActive=false;selectedMode=0;
-            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;lastDivisorAcquired=0;
+            intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;pendingBonusTarget=null;pendingBonusTimer=0;pendingBonusX=0;pendingBonusY=0;lastDivisorAcquired=0;
             aiming=false;aimTargetTimer=0;aimCharge=0;chargeParticleTimer=0;aimDownTime=0;manualPage=0;dirtParticleTimer=0;
             aimCharged=false;shotWasCharged=false;shotHyper=false;projectileParticleTimer=0;hudChargeFlashTimer=0;lastProtectedBonus=0;
             waves.wave=Math.max(1,Math.min(WaveManager.MAX_WAVE,sp.getInt("wave",1)));
@@ -1465,7 +1558,7 @@ public class GameV2Activity extends Activity {
 
         void returnToMainMenu(){
             running=false;preWave=false;gameOver=false;quizOpen=false;paused=false;victory=false;waveClear=false;intermission=false;manualFromPause=false;bombSequence=false;bombSequenceTimer=0;bombFlashTimer=0;
-            pendingBonusTarget=null;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
+            pendingBonusTarget=null;pendingBonusX=0;pendingBonusY=0;meteors.clear();particles.clear();uiParticles.clear();hudNotices.clear();worldTexts.clear();pickupFlights.clear();commercial=null;military=null;quizMeteor=null;pauseRect.setEmpty();
             cityImg=baseCityImg;aimCharged=false;shotWasCharged=false;shotHyper=false;hudChargeFlashTimer=0;protectedSiteDestroyed=false;protectedSiteHealth=100f;
             audio.stopLong();audio.setMusicPaused(false);audio.playMusic("musica_menu.ogg",.42f);menuPage=MENU_MAIN;
         }
@@ -1766,9 +1859,9 @@ public class GameV2Activity extends Activity {
             audio.play("disparo_canhao.wav");
         }
 
-        void queueBonusCollection(Meteor m){
+        void queueBonusCollection(Meteor m,float hitX,float hitY){
             if(m==null||m.dead||pendingBonusTarget!=null)return;
-            pendingBonusTarget=m;pendingBonusTimer=shotDuration;
+            pendingBonusTarget=m;pendingBonusTimer=shotDuration;pendingBonusX=hitX;pendingBonusY=hitY;
         }
 
         void applyDivisorShot(Meteor m,int divisor){
@@ -1804,7 +1897,7 @@ public class GameV2Activity extends Activity {
                 if(!m.dead&&WaveManager.hitsMeteor(m.x,m.y,m.radius,x,y,selectedDifficulty)){hit=m;break;}
             }
             if(hit==null)return;
-            if(hit.kind==Kind.BONUS){queueBonusCollection(hit);return;}
+            if(hit.kind==Kind.BONUS){queueBonusCollection(hit,x,y);return;}
 
             // O total de dinheiro obtido de um mesmo meteoro nunca excede
             // o valor que ele tinha ao entrar na fase.
@@ -1812,7 +1905,6 @@ public class GameV2Activity extends Activity {
             if(income>0){
                 hit.moneyEarned+=income;
                 inv.money+=income;
-                addHudNotice("+R$ "+income+"  METEORO",Color.YELLOW);
             }
 
             if(selectedMode==1){
@@ -1860,23 +1952,29 @@ public class GameV2Activity extends Activity {
         }
 
         void collectBonus(Meteor m){
+            collectBonusAt(m,m.x,m.y);
+        }
+
+        void collectBonusAt(Meteor m,float effectX,float effectY){
             switch(m.bonus){
                 case AMMO:
+                    startPickupFlight(m,effectX,effectY);
                     if(subtractionMechanic){
                         inv.addWeaponAmmo(m.ammoValue,2);
-                        addHudNotice("MUNICAO "+m.ammoValue+" +2",Color.YELLOW);
                         audio.play("bonus_municao.wav");
                     }else{
                         boolean unlocked=inv.unlockDivisor(m.ammoValue);
-                        addHudNotice(unlocked?"DIVISOR "+m.ammoValue+" LIBERADO":"DIVISOR "+m.ammoValue+" JA DISPONIVEL",Color.YELLOW);
                         if(unlocked)audio.play("municao_desbloqueada.wav");
                         else audio.play("bonus_municao.wav");
                     }
                     break;
                 case HYPER:
-                    inv.addHyper(1);addHudNotice("ARMA H +1",Color.CYAN);audio.play("bonus_municao.wav");break;
+                    startPickupFlight(m,effectX,effectY);
+                    inv.addHyper(1);audio.play("bonus_municao.wav");break;
                 case MONEY:
-                    inv.money+=m.value;addHudNotice("+R$ "+m.value+"  BONUS",Color.YELLOW);audio.play("bonus_dinheiro.wav");break;
+                    inv.money+=m.value;
+                    addWorldMoney(effectX,effectY,m.value);
+                    audio.play("bonus_dinheiro.wav");break;
                 case HEALTH:
                     float before=cityHealth;cityHealth=Math.min(100,cityHealth+m.value);
                     addHudNotice("CIDADE +"+Math.round(cityHealth-before)+"%",Color.GREEN);audio.play("bonus_saude.wav");break;
@@ -1889,7 +1987,18 @@ public class GameV2Activity extends Activity {
             m.dead=true;burst(m.x,m.y,Color.YELLOW,12);
         }
 
-        void explode(Meteor m,boolean count,boolean guaranteedBonus){if(m.dead)return;m.dead=true;audio.play("explosao_meteoro.wav");burst(m.x,m.y,Color.rgb(255,150,35),24);if(count){waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);if(guaranteedBonus)spawnBonusAt(m.x,m.y);}}
+        void explode(Meteor m,boolean count,boolean guaranteedBonus){
+            if(m.dead)return;
+            float ex=m.x,ey=m.y;
+            m.dead=true;
+            audio.play("explosao_meteoro.wav");
+            burst(ex,ey,Color.rgb(255,150,35),24);
+            if(count){
+                waves.countDestroyed();destroyedTotal++;score+=10+Math.min(40,m.originalValue/3);
+                if(m.moneyEarned>0)addWorldMoney(ex,ey,m.moneyEarned);
+                if(guaranteedBonus)spawnBonusAt(ex,ey);
+            }
+        }
         void spawnBonusAt(float x,float y){Meteor b=new Meteor();b.x=x;b.y=y;b.speed=30;b.radius=18;setupBonus(b);meteors.add(b);}
         void openQuiz(Meteor m){quizOpen=true;quizMeteor=m;quizAttempts=0;audio.play("quiz_abre.wav");}
         void answerQuiz(int option){
@@ -2006,7 +2115,8 @@ public class GameV2Activity extends Activity {
             if(military!=null)drawPlane(c,military);
             drawCannon(c);drawProjectile(c);
             c.restore();
-            drawAimTarget(c);drawHud(c);drawUiParticles(c);
+            drawWorldTexts(c);
+            drawAimTarget(c);drawHud(c);drawUiParticles(c);drawPickupFlights(c);
 
             if(bombFlashTimer>0f){
                 float t=Math.max(0f,Math.min(1f,bombFlashTimer/BOMB_FLASH_DURATION));
@@ -2272,15 +2382,11 @@ public class GameV2Activity extends Activity {
             if(m.kind==Kind.BONUS)return;
             m.tailTimer-=dt;if(m.tailTimer>0)return;
             m.tailTimer=.030f+.030f*rnd.nextFloat();
-            int col=Color.rgb(255,145,30);
-            if(m.kind==Kind.MULT)col=Color.rgb(75,220,105);
-            else if(m.kind==Kind.ADD)col=Color.rgb(255,215,55);
-            else if(m.kind==Kind.SUB)col=Color.rgb(255,105,85);
-            else if(m.kind==Kind.DIV)col=Color.rgb(80,205,255);
-            for(int i=0;i<3;i++){
+            int col=isQuizMeteor(m)?Color.rgb(235,45,35):Color.rgb(255,145,30);
+            for(int i=0;i<(isQuizMeteor(m)?5:3);i++){
                 float tx=m.x-m.radius+rnd.nextFloat()*(m.radius*2f);
-                float ty=m.y-m.radius-rnd.nextFloat()*(m.radius*2f);
-                particles.add(new Particle(tx,ty,-8+rnd.nextFloat()*16,-5-rnd.nextFloat()*18,.22f+rnd.nextFloat()*.24f,col,1.4f+rnd.nextFloat()*2.4f));
+                float ty=m.y-m.radius-rnd.nextFloat()*(m.radius*2.4f);
+                particles.add(new Particle(tx,ty,-10+rnd.nextFloat()*20,-8-rnd.nextFloat()*26,.24f+rnd.nextFloat()*.28f,col,1.5f+rnd.nextFloat()*2.8f));
             }
         }
         void saveScore(){if(scoreSaved||score<=0||destroyedTotal<=0)return;scoreSaved=true;try{SharedPreferences sp=getContext().getSharedPreferences("pontuacao",Context.MODE_PRIVATE);String date=new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm:ss",java.util.Locale.getDefault()).format(new java.util.Date());int check=score%(destroyedTotal+1);sp.edit().putString(date,date+"|"+score+"|"+destroyedTotal+"|"+check).apply();}catch(Exception ignored){}}
@@ -2330,7 +2436,7 @@ public class GameV2Activity extends Activity {
             if(aiming){
                 String v;
                 if(selectedMode==1)v="H "+MeteorMathV2.MAX_METEOR_VALUE;
-                else if(subtractionMechanic)v="SUB "+inv.selectedWeapon;
+                else if(subtractionMechanic)v=String.valueOf(inv.selectedWeapon);
                 else v="DIV "+currentChargedDivisor();
                 drawOutlinedText(c,v,aimX,Math.max(18,aimY-r-7),13,aimCharge>0?Color.CYAN:Color.WHITE);
             }
@@ -2340,19 +2446,26 @@ public class GameV2Activity extends Activity {
             if(m.kind==Kind.BONUS){
                 drawBonusMeteor(c,m);
             }else{
+                boolean quiz=isQuizMeteor(m);
+                if(quiz){
+                    float pulse=1f+.08f*(float)Math.sin(SystemClock.uptimeMillis()/90.0);
+                    float aura=(m.radius+9f)*pulse;
+                    p.setColor(Color.argb(54,70,175,255));c.drawCircle(m.x,m.y,aura,p);
+                    p.setColor(Color.argb(120,90,205,255));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2.2f);
+                    c.drawCircle(m.x,m.y,aura-2f,p);p.setStyle(Paint.Style.FILL);
+                }
                 Paint use=pixel;
-                if(m.kind==Kind.MULT){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(80,205,105),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.ADD){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,220,80),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.SUB){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(255,115,95),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
-                else if(m.kind==Kind.DIV){tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(100,210,255),PorterDuff.Mode.MULTIPLY));use=tintPaint;}
+                if(quiz){
+                    tintPaint.setColorFilter(new PorterDuffColorFilter(Color.rgb(92,205,112),PorterDuff.Mode.MULTIPLY));use=tintPaint;
+                }
                 int frame=((int)(SystemClock.uptimeMillis()/130)+Math.abs(m.originalValue))%4;
                 RectF dest=new RectF(m.x-m.radius,m.y-m.radius,m.x+m.radius,m.y+m.radius);
                 if(meteorSheet!=null)drawTile(c,meteorSheet,8,1,frame,dest,use);
-                else{p.setColor(Color.rgb(100,88,68));c.drawCircle(m.x,m.y,m.radius,p);}
+                else{p.setColor(quiz?Color.rgb(82,170,96):Color.rgb(100,88,68));c.drawCircle(m.x,m.y,m.radius,p);}
                 tintPaint.setColorFilter(null);
                 String text;
-                if(bombSequence&&!isQuizMeteor(m))text="0x"+m.value;
-                else text=isQuizMeteor(m)&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
+                if(bombSequence&&!quiz)text="0x"+m.value;
+                else text=quiz&&m.quiz!=null?m.quiz.expression():String.valueOf(m.value);
                 drawText(c,text,m.x,m.y+5,15,Color.WHITE,true);
             }
             if(m.targetBlink&&((int)(m.blinkTime*10)%2==0)){
