@@ -976,6 +976,37 @@ public class GameV2Activity extends Activity {
             }
         }
 
+        void addHudNotice(String text,int color){
+            if(text==null||text.length()==0)return;
+            hudNotices.add(0,new HudNotice(text,color,1.65f));
+            while(hudNotices.size()>4)hudNotices.remove(hudNotices.size()-1);
+        }
+
+        void updateHudNotices(float dt){
+            Iterator<HudNotice> it=hudNotices.iterator();
+            while(it.hasNext()){
+                HudNotice n=it.next();
+                n.life-=dt;
+                if(n.life<=0)it.remove();
+            }
+        }
+
+        void drawHudNotices(Canvas c){
+            int shown=0;
+            for(HudNotice n:hudNotices){
+                if(shown>=3)break;
+                float t=Math.max(0f,Math.min(1f,n.life/n.maxLife));
+                int alpha=Math.max(0,Math.min(255,Math.round(255f*Math.min(1f,t*2f))));
+                int base=n.color;
+                int col=Color.argb(alpha,Color.red(base),Color.green(base),Color.blue(base));
+                float y=96+shown*20;
+                p.setColor(Color.argb(Math.min(150,alpha),0,0,0));
+                c.drawRect(250,y-15,550,y+4,p);
+                drawText(c,n.text,400,y,12,col,true);
+                shown++;
+            }
+        }
+
         void updateUiParticles(float dt){
             Iterator<Particle> it=uiParticles.iterator();
             while(it.hasNext()){
@@ -989,19 +1020,19 @@ public class GameV2Activity extends Activity {
             if(shotTimer<=0)return;
             projectileParticleTimer-=dt;
             if(projectileParticleTimer>0)return;
-            projectileParticleTimer=shotWasCharged?.012f:.022f;
+            projectileParticleTimer=shotHyper?.008f:shotWasCharged?.012f:.022f;
             float t=1f-shotTimer/shotDuration;t=Math.max(0,Math.min(1,t));
             float x=shotStartX+(shotTargetX-shotStartX)*t;
             float y=shotStartY+(shotTargetY-shotStartY)*t;
             float dx=shotTargetX-shotStartX,dy=shotTargetY-shotStartY;
             float len=(float)Math.sqrt(dx*dx+dy*dy);if(len<1)len=1;
             float ux=dx/len,uy=dy/len;
-            int count=shotWasCharged?5:2;
+            int count=shotHyper?8:shotWasCharged?5:2;
             for(int i=0;i<count;i++){
                 float side=-5+rnd.nextFloat()*10;
                 float px=x-ux*(4+rnd.nextFloat()*10)-uy*side;
                 float py=y-uy*(4+rnd.nextFloat()*10)+ux*side;
-                int col=shotWasCharged?(rnd.nextBoolean()?Color.CYAN:Color.WHITE):Color.rgb(185,215,235);
+                int col=shotHyper?(rnd.nextBoolean()?Color.WHITE:Color.CYAN):shotWasCharged?(rnd.nextBoolean()?Color.CYAN:Color.WHITE):Color.rgb(185,215,235);
                 particles.add(new Particle(px,py,-ux*(20+rnd.nextFloat()*25)-uy*side*2,-uy*(20+rnd.nextFloat()*25)+ux*side*2,.16f+rnd.nextFloat()*.22f,col,1.0f+rnd.nextFloat()*2.1f));
             }
             if(shotWasCharged){
@@ -1162,6 +1193,7 @@ public class GameV2Activity extends Activity {
         }
 
         void update(float dt){
+            updateHudNotices(dt);
             if(saveNoticeTimer>0){saveNoticeTimer=Math.max(0,saveNoticeTimer-dt);if(saveNoticeTimer==0)saveNotice=false;}
             if(victory){updateVictory(dt);updateParticles(dt);updatePlaneDebris(dt);return;}
             if(intermission){updateParticles(dt);updatePlaneDebris(dt);return;}
@@ -1171,7 +1203,7 @@ public class GameV2Activity extends Activity {
             if(cannonAnim>0)cannonAnim=Math.max(0,cannonAnim-dt);
             else if(shotTimer<=0&&!aiming)cannonAngle=-45f;
             if(shotTimer>0){updateProjectileEffects(dt);shotTimer=Math.max(0,shotTimer-dt);}
-            else shotWasCharged=false;
+            else{shotWasCharged=false;shotHyper=false;}
             if(!aiming&&aimTargetTimer>0)aimTargetTimer=Math.max(0,aimTargetTimer-dt);
             if(hudChargeFlashTimer>0)hudChargeFlashTimer=Math.max(0,hudChargeFlashTimer-dt);
             updateUiParticles(dt);
@@ -2223,10 +2255,16 @@ public class GameV2Activity extends Activity {
             if(laserEnabled){p.setColor(Color.argb(100,220,245,255));p.setStrokeWidth(1.2f);c.drawLine(shotStartX,shotStartY,shotTargetX,shotTargetY,p);}
             float x=shotStartX+(shotTargetX-shotStartX)*t;
             float y=shotStartY+(shotTargetY-shotStartY)*t;
+            if(shotHyper){
+                float pulse=16f+3f*(float)Math.sin(SystemClock.uptimeMillis()/35.0);
+                p.setColor(Color.argb(80,180,245,255));c.drawCircle(x,y,pulse,p);
+                p.setColor(Color.argb(165,255,255,255));p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(2f);c.drawCircle(x,y,pulse+4f,p);p.setStyle(Paint.Style.FILL);
+            }
+            float half=shotHyper?16f:10f;
             if(projectileSheet!=null){
-                drawTile(c,projectileSheet,8,1,shotProjectileIndex,new RectF(x-10,y-10,x+10,y+10),pixel);
+                drawTile(c,projectileSheet,8,1,shotProjectileIndex,new RectF(x-half,y-half,x+half,y+half),pixel);
             }else{
-                p.setColor(Color.WHITE);c.drawCircle(x,y,4,p);
+                p.setColor(Color.WHITE);c.drawCircle(x,y,shotHyper?7f:4f,p);
             }
         }
 
